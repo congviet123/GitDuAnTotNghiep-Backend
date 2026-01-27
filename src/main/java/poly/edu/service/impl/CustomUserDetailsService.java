@@ -17,16 +17,22 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 1. Tìm user trong DB
         User user = userService.findById(username);
         if (user == null) {
             throw new UsernameNotFoundException("User not found: " + username);
         }
 
+        // 2. Build UserDetails cho Spring Security
         UserBuilder builder = org.springframework.security.core.userdetails.User.withUsername(username);
         builder.password(user.getPassword());
         
-        // [QUAN TRỌNG] DB lưu "ROLE_ADMIN" -> dùng authorities để giữ nguyên chuỗi này
-        // Nếu dùng roles() nó sẽ thành ROLE_ROLE_ADMIN (Sai)
+   
+        // Lấy trạng thái từ DB: Nếu user.getEnabled() là false (0) -> disabled = true
+        builder.disabled(!user.getEnabled()); 
+        // -------------------------
+        
+        // Set quyền hạn
         builder.authorities(user.getRole().getName()); 
         
         return builder.build();

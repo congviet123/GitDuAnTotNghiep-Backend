@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonIgnore; // Import cần thiết
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "Category")
@@ -21,8 +21,7 @@ public class Category implements Serializable {
     @Column(unique = true, nullable = false)
     private String name;
 
-    // QUAN TRỌNG: Ngắt vòng lặp JSON khi Vue gọi API lấy danh mục
     @JsonIgnore 
-    @OneToMany(mappedBy = "category", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "category", fetch = FetchType.LAZY)
     private List<Product> products;
 }

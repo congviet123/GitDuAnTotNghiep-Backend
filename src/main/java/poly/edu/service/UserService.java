@@ -35,4 +35,6 @@ public interface UserService {
     void changePassword(String username, ChangePasswordDTO passDto);
     
     void forgotPassword(String email);
+    
+    List<User> getAdmins();
 }

@@ -21,20 +21,37 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public Category create(Category category) {
-        return categoryRepository.save(category);
-    }
-
-    @Override
-    public Category update(Category category) {
-        // Kiểm tra tồn tại trước khi cập nhật
-        if (category.getId() == null || !categoryRepository.existsById(category.getId())) {
-            throw new RuntimeException("Danh mục không tồn tại.");
+        if (categoryRepository.existsByName(category.getName())) {
+            throw new RuntimeException("Tên danh mục '" + category.getName() + "' đã tồn tại.");
         }
         return categoryRepository.save(category);
     }
 
     @Override
+    public Category update(Category category) {
+        // Kiểm tra tồn tại
+        Category existingCategory = categoryRepository.findById(category.getId())
+                .orElseThrow(() -> new RuntimeException("Danh mục không tồn tại."));
+
+        // Kiểm tra trùng tên (Nếu tên mới khác tên cũ mà lại trùng trong DB)
+        if (!existingCategory.getName().equals(category.getName()) 
+                && categoryRepository.existsByName(category.getName())) {
+            throw new RuntimeException("Tên danh mục '" + category.getName() + "' đã tồn tại.");
+        }
+        
+        return categoryRepository.save(category);
+    }
+
+    @Override
     public void delete(Integer id) {
-        categoryRepository.deleteById(id);
+        if (!categoryRepository.existsById(id)) {
+            throw new RuntimeException("Danh mục không tồn tại.");
+        }
+        try {
+            categoryRepository.deleteById(id);
+        } catch (Exception e) {
+            // Bắt lỗi ràng buộc khóa ngoại (Nếu danh mục đang chứa sản phẩm)
+            throw new RuntimeException("Không thể xóa danh mục này vì đang chứa sản phẩm.");
+        }
     }
 }

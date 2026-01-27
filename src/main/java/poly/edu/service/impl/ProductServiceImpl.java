@@ -3,19 +3,23 @@ package poly.edu.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import poly.edu.entity.Product;
 import poly.edu.repository.ProductRepository;
 import poly.edu.service.ProductService;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.math.BigDecimal;
-import java.util.Comparator; 
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -23,111 +27,177 @@ public class ProductServiceImpl implements ProductService {
     @Autowired
     private ProductRepository productRepository;
 
-    // --- CRUD CƠ BẢN ---
-    // Các phương thức này không cần @Transactional nếu không truy cập Lazy-Loaded fields sau khi Session đóng
+    // Đường dẫn lưu ảnh: target/classes/static/imgs
+    private final Path fileStorageLocation = Paths.get("target/classes/static/imgs").toAbsolutePath().normalize();
 
-    @Override
-    public List<Product> findAll() {
-        return productRepository.findAll();
+    public ProductServiceImpl() {
+        try {
+            Files.createDirectories(this.fileStorageLocation);
+        } catch (Exception ex) {
+            throw new RuntimeException("Lỗi: Không thể tạo thư mục lưu trữ ảnh.", ex);
+        }
     }
 
+    // ======================================================================
+    // 1. TÌM KIẾM NÂNG CAO CHO ADMIN (Đã thêm lọc theo Discount)
+    // ======================================================================
     @Override
-    public Optional<Product> findById(Integer id) {
-        return productRepository.findById(id);
+    public Page<Product> filterAdminProducts(String keyword, Integer categoryId, 
+                                             Double minPrice, Double maxPrice, 
+                                             Double minQty, Double maxQty, 
+                                             Integer minDiscount, Integer maxDiscount, // [MỚI] Thêm tham số này
+                                             int page, int size) {
+        // Chuyển đổi Double sang BigDecimal
+        BigDecimal minP = (minPrice != null) ? BigDecimal.valueOf(minPrice) : null;
+        BigDecimal maxP = (maxPrice != null) ? BigDecimal.valueOf(maxPrice) : null;
+        BigDecimal minQ = (minQty != null) ? BigDecimal.valueOf(minQty) : null;
+        BigDecimal maxQ = (maxQty != null) ? BigDecimal.valueOf(maxQty) : null;
+
+        int effectiveSize = (size <= 0) ? Integer.MAX_VALUE : size;
+
+        // Gọi Repository với đầy đủ tham số (bao gồm discount)
+        return productRepository.searchForAdmin(
+            keyword, categoryId, minP, maxP, minQ, maxQ, 
+            minDiscount, maxDiscount, // [MỚI] Truyền xuống DB
+            PageRequest.of(page, effectiveSize)
+        );
     }
 
+    // ======================================================================
+    // 2. TÌM KIẾM CHO CLIENT
+    // ======================================================================
+    @Override
+    public Page<Product> searchProductsClient(String keyword, Integer categoryId, 
+                                              Double minPrice, Double maxPrice, 
+                                              int page, int size) {
+        BigDecimal minP = minPrice != null ? BigDecimal.valueOf(minPrice) : null;
+        BigDecimal maxP = maxPrice != null ? BigDecimal.valueOf(maxPrice) : null;
+        
+        return productRepository.searchForClient(keyword, categoryId, minP, maxP, PageRequest.of(page, size));
+    }
+
+    // ======================================================================
+    // 3. CRUD CƠ BẢN
+    // ======================================================================
+
+    @Override
+    public List<Product> findAll() { return productRepository.findAll(); }
+
+    @Override
+    public Optional<Product> findById(Integer id) { return productRepository.findById(id); }
+
+    // [CREATE]
     @Override
     @Transactional
-    public Product create(Product product) {
-        product.setCreateDate(new Date());
-        if (product.getAvailable() == null) {
-            product.setAvailable(true);
+    public Product create(Product product, MultipartFile imageFile) throws IOException {
+        if (imageFile != null && !imageFile.isEmpty()) {
+            product.setImage(saveFile(imageFile));
         }
+        
+        if (product.getCreateDate() == null) {
+            product.setCreateDate(new Date());
+        } 
+
+        // Giá trị mặc định
+        if (product.getAvailable() == null) product.setAvailable(true);
+        if (product.getQuantity() == null) product.setQuantity(BigDecimal.ZERO);
+        if (product.getIsLiquidation() == null) product.setIsLiquidation(false);
+        if (product.getImportPrice() == null) product.setImportPrice(BigDecimal.ZERO);
+        if (product.getDiscount() == null) product.setDiscount(0);
+        
         return productRepository.save(product);
     }
 
+    // [UPDATE]
     @Override
     @Transactional
-    public Product update(Product product) {
-        if (product.getId() == null || !productRepository.existsById(product.getId())) {
-            throw new RuntimeException("Sản phẩm không tồn tại.");
+    public Product update(Product product, MultipartFile imageFile) throws IOException {
+        if (product.getId() == null) throw new RuntimeException("ID không được để trống");
+        
+        Product existingProduct = findById(product.getId())
+                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại: " + product.getId()));
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            product.setImage(saveFile(imageFile));
+        } else {
+            product.setImage(existingProduct.getImage());
         }
+
+        if (product.getQuantity() == null) product.setQuantity(BigDecimal.ZERO);
+        
+        // Giữ nguyên ngày tạo nếu không chọn mới
+        if (product.getCreateDate() == null) {
+             product.setCreateDate(existingProduct.getCreateDate());
+        }
+        
         return productRepository.save(product);
     }
 
+    // [DELETE]
     @Override
     public void delete(Integer id) {
-        productRepository.deleteById(id);
+        Product product = findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+
+        if (product.getQuantity() != null && product.getQuantity().compareTo(BigDecimal.ZERO) > 0 
+                && !Boolean.TRUE.equals(product.getIsLiquidation())) {
+            throw new RuntimeException("Không thể xóa! Sản phẩm còn tồn kho: " + product.getQuantity() + " kg.");
+        }
+
+        try {
+            productRepository.deleteById(id);
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi: Sản phẩm đã có đơn hàng liên quan.");
+        }
     }
 
-    // --- PAGED ---
+    // ======================================================================
+    // 4. LOGIC PHỤ & HELPERS
+    // ======================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Product> searchAndFilter(String keyword, String categoryName, Double minPrice, Double maxPrice) {
+        int maxFetch = 2000;
+        List<Product> products = productRepository.findAllWithCategory(PageRequest.of(0, maxFetch)).getContent();
+        return products.stream()
+            .filter(p -> keyword == null || keyword.trim().isEmpty() || p.getName().toLowerCase().contains(keyword.trim().toLowerCase()))
+            .collect(Collectors.toList());
+    }
+
     @Override
     public Page<Product> findAllPaged(int page, int size) {
-        int p = Math.max(0, page);
-        int s = Math.max(1, size);
-        Pageable pageable = PageRequest.of(p, s);
-        return productRepository.findAllWithCategory(pageable);
+        return productRepository.findAllWithCategory(PageRequest.of(page, size));
     }
 
-    // --- LOGIC TRANG CHỦ (INDEX) ---
-    // BỔ SUNG @Transactional để tránh LazyInitializationException khi truy cập Category hoặc các quan hệ khác
-
     @Override
-    @Transactional // <--- ĐÃ BỔ SUNG
     public List<Product> findBestSellers(int limit) {
-        if (limit <= 0) return List.of();
-        Page<Product> page = productRepository.findAvailableOrderByPriceDesc(PageRequest.of(0, limit));
-        return page.getContent();
+        return productRepository.findAvailableOrderByPriceDesc(PageRequest.of(0, limit)).getContent();
     }
 
     @Override
-    @Transactional // <--- ĐÃ BỔ SUNG
     public List<Product> findNewProducts(int limit) {
-        if (limit <= 0) return List.of();
-        Page<Product> page = productRepository.findAvailableOrderByCreateDateDesc(PageRequest.of(0, limit));
-        return page.getContent();
+        return productRepository.findAvailableOrderByCreateDateDesc(PageRequest.of(0, limit)).getContent();
     }
-    
+
     @Override
     public List<Product> findDiscountProducts(int limit) {
-        if (limit <= 0) return List.of();
-        // Fetch a few more items to increase chance of finding 'odd id' products
-        int fetchSize = Math.max(limit * 3, 50);
-        Page<Product> page = productRepository.findAvailable(PageRequest.of(0, fetchSize));
-        return page.getContent().stream()
-                .filter(p -> p.getId() != null && p.getId() % 2 != 0)
-                .limit(limit)
-                .collect(Collectors.toList());
+        return productRepository.findDiscountProducts(PageRequest.of(0, limit));
     }
 
-    // --- LOGIC TÌM KIẾM & LỌC (SEARCH & FILTER) ---
-    // BẮT BUỘC có @Transactional vì truy cập p.getCategory().getName() (Lazy field)
-    
+    // Overload methods
     @Override
-    @Transactional // <--- ĐÃ BỔ SUNG (BẮT BUỘC)
-    public List<Product> searchAndFilter(String keyword, String categoryName, Double minPrice, Double maxPrice) {
-        // Use a limited fetch to avoid loading absolutely everything into memory
-        int maxFetch = 1000;
-        Page<Product> page = productRepository.findAllWithCategory(PageRequest.of(0, maxFetch));
-        List<Product> products = page.getContent();
+    public Product create(Product product) {
+        try { return create(product, null); } catch (IOException e) { throw new RuntimeException(e); }
+    }
+    @Override
+    public Product update(Product product) {
+        try { return update(product, null); } catch (IOException e) { throw new RuntimeException(e); }
+    }
 
-        // Logic lọc bằng Java Stream
-        return products.stream()
-            // 1. Lọc theo Từ khóa
-            .filter(p -> keyword == null || keyword.isEmpty() || p.getName().toLowerCase().contains(keyword.toLowerCase()))
-            
-            // 2. Lọc theo Danh mục (Đảm bảo Category và Category Name không null)
-            // Việc truy cập p.getCategory().getName() đã an toàn nhờ @Transactional
-            .filter(p -> categoryName == null || categoryName.isEmpty() ||
-                          (p.getCategory() != null && p.getCategory().getName() != null &&
-                           p.getCategory().getName().equalsIgnoreCase(categoryName)))
-            
-            // 3. Lọc theo Khoảng Giá Min 
-            .filter(p -> (minPrice == null || p.getPrice() == null) || p.getPrice().compareTo(BigDecimal.valueOf(minPrice)) >= 0)
-            
-            // 4. Lọc theo Khoảng Giá Max 
-            .filter(p -> (maxPrice == null || p.getPrice() == null) || p.getPrice().compareTo(BigDecimal.valueOf(maxPrice)) <= 0)
-            
-            .collect(Collectors.toList());
+    private String saveFile(MultipartFile file) throws IOException {
+        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        Path targetLocation = this.fileStorageLocation.resolve(fileName);
+        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+        return fileName;
     }
 }

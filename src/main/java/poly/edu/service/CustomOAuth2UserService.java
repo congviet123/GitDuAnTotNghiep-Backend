@@ -5,7 +5,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.OAuth2Error; // [MỚI]
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -34,18 +34,20 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (userOptional.isPresent()) {
             user = userOptional.get();
             
-            // Kiểm tra xem tài khoản có bị khóa không
+            // --- [CẬP NHẬT] LOGIC CHẶN VÀ THÔNG BÁO LỖI ---
             if (!user.getEnabled()) {
-                throw new OAuth2AuthenticationException(new OAuth2Error("account_disabled"), "Tài khoản đã bị khóa.");
+                // Ném lỗi với message chuẩn theo yêu cầu
+                throw new OAuth2AuthenticationException(new OAuth2Error("account_disabled"), 
+                        "Tài khoản của bạn đã tạm bị khóa, vui lòng liên hệ admin để mở tài khoản");
             }
             
-            // Cập nhật tên nếu cần
-            if (!name.equals(user.getFullname())) {
+            // Cập nhật tên nếu có thay đổi từ phía Google
+            if (name != null && !name.equals(user.getFullname())) {
                 user.setFullname(name);
                 userRepository.save(user);
             }
         } else {
-            //  Nếu chưa có trong DB -> Ném lỗi để chặn đăng nhập
+            // Nếu chưa có tài khoản -> Chặn đăng nhập (Logic cũ)
             // Mã lỗi "unregistered" sẽ được hứng ở SecurityConfig
             throw new OAuth2AuthenticationException(new OAuth2Error("unregistered"), "Email này chưa đăng ký tài khoản.");
         }

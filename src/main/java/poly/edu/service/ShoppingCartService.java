@@ -5,18 +5,24 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public interface ShoppingCartService {
-    void add(Integer productId, Integer quantity);
+   
+    void add(Integer productId, Double quantity);
+    
     void remove(Integer productId);
-    void update(Integer productId, Integer quantity);
+    
+ 
+    void update(Integer productId, Double quantity);
+    
     void clear();
- // BỔ SUNG: Khai báo phương thức xóa nhiều item
+    
+    // Xóa nhiều item (dùng sau khi thanh toán)
     void removeItems(List<Integer> productIds); 
+    
     List<CartItemDTO> getItems();
     BigDecimal getAmount();
     
-    // Tổng số item khác nhau (ví dụ: 2 loại)
     int getCount(); 
 
-    // Tổng số lượng sản phẩm (ví dụ: 5 chiếc)
-    int getTotalQuantity();
+    
+    double getTotalQuantity();
 }

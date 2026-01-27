@@ -1,29 +1,33 @@
 package poly.edu.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Cấu hình đường dẫn tài nguyên tĩnh (Giữ nguyên code cũ của bạn)
-        registry.addResourceHandler("/static/**", "/js/**", "/css/**", "/imgs/**", "/bootstrap/**")
-                .addResourceLocations("classpath:/static/", "classpath:/public/", "classpath:/resources/", "classpath:/META-INF/resources/")
-                .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
+        
+        // 1. Lấy đường dẫn gốc của dự án (Ví dụ: D:\Project\...)
+        String rootPath = System.getProperty("user.dir");
+        
+        // 2. Chuyển đổi dấu gạch chéo ngược (\) thành xuôi (/) để đúng chuẩn URL
+        String cleanRootPath = rootPath.replace("\\", "/");
+        
+        // 3. Ghép chuỗi để trỏ vào thư mục src
+        String uploadPath = cleanRootPath + "/src/main/resources/static/imgs/";
 
-        registry.addResourceHandler("/imgs/**", "/js/**", "/css/**")
-                .addResourceLocations("file:src/main/resources/static/imgs/", "file:src/main/resources/static/js/", "file:src/main/resources/static/css/")
-                .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
+        // Log ra để bạn kiểm tra (Nó phải ra dạng: D:/Project.../src/.../imgs/)
+        System.out.println(">>> PATH CHUẨN: file:///" + uploadPath);
 
-        registry.addResourceHandler("/**")
-                .addResourceLocations("classpath:/static/")
-                .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
+        registry.addResourceHandler("/imgs/**")
+                .addResourceLocations("file:///" + uploadPath) // Ưu tiên 1: Đọc từ source code (Dev)
+                .addResourceLocations("classpath:/static/imgs/"); // Ưu tiên 2: Đọc từ file jar (Prod)
+        
+        // Cấu hình tài nguyên tĩnh khác
+        registry.addResourceHandler("/static/**", "/css/**", "/js/**")
+                .addResourceLocations("classpath:/static/", "classpath:/static/css/", "classpath:/static/js/");
     }
 }

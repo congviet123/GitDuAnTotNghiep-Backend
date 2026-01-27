@@ -21,4 +21,5 @@ public class OrderCreateDTO {
 
     // Danh sách sản phẩm được chuyển từ giỏ hàng (CartItemDTO)
     private List<CartItemDTO> items;
+    private String paymentMethod;
 }

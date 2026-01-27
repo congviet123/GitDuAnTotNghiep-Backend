@@ -5,11 +5,23 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor // Tạo Constructor có đầy đủ tham số (Quan trọng cho câu Query trên)
+@AllArgsConstructor // Lombok sẽ tạo Constructor theo đúng thứ tự các biến bên dưới
 @NoArgsConstructor
 public class UserListDTO {
+    
     private String username;
+    
     private String fullname;
+    
     private String email;
-    private String roleName; // Tương ứng với u.role.name
+    
+    // --- CÁC TRƯỜNG CHO ADMIN QUẢN LÝ ---
+    
+    private String address;   // Để hiển thị Địa chỉ
+    
+    private String phone;     // Để hiển thị Số điện thoại
+    
+    private String roleName;  // Tên quyền (ROLE_ADMIN, ROLE_STAFF...)
+    
+    private Boolean enabled;  // Để hiển thị trạng thái (Đang hoạt động hay Bị khóa)
 }
