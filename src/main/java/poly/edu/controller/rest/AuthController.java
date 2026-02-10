@@ -71,7 +71,7 @@ public class AuthController {
         return ResponseEntity.ok("Đăng xuất thành công");
     }
 
-    // --- [TIỆN ÍCH] RESET MẬT KHẨU NHANH (Giữ nguyên) ---
+    // --- RESET MẬT KHẨU NHANH (Giữ nguyên) ---
     // URL: http://localhost:8080/rest/auth/reset-password?username=admin
     @GetMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestParam String username) {

@@ -1,11 +1,11 @@
 
-//API REST người dùng nào cũng có thể gọi được
 package poly.edu.controller.rest;
+
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType; // Import MediaType để xử lý Multipart
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -13,7 +13,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile; // Import MultipartFile để upload ảnh
+import org.springframework.web.multipart.MultipartFile;
+
 import poly.edu.entity.*;
 import poly.edu.entity.dto.*;
 import poly.edu.repository.CartRepository;
@@ -24,7 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors; // Import Collectors để xử lý stream
+import java.util.stream.Collectors;
 
 @CrossOrigin("*")
 @RestController
@@ -88,9 +89,10 @@ public class ClientRestController {
     }
 
     // ============================================================
-    // 1. TÀI KHOẢN (PROFILE)
+    // 1. TÀI KHOẢN (PROFILE & AUTH)
     // ============================================================
 
+    // Lấy thông tin chi tiết (Full Profile)
     @GetMapping("/account/profile")
     public ResponseEntity<?> getProfile() {
         try {
@@ -104,6 +106,21 @@ public class ClientRestController {
         }
     }
 
+    // Cập nhật thông tin User (Họ tên, Email, SĐT)
+    @PutMapping("/account/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody UserUpdateDTO userDto) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            
+            userService.updateProfile(username, userDto);
+            return ResponseEntity.ok("Cập nhật thành công!");
+        } catch (Exception e) { 
+            return ResponseEntity.badRequest().body(e.getMessage()); 
+        }
+    }
+
+    // Lấy thông tin rút gọn (Short Profile cho Header/Checkout)
     @GetMapping("/client/profile")
     public ResponseEntity<?> getClientProfileShort() {
         try {
@@ -117,12 +134,60 @@ public class ClientRestController {
             profile.put("username", user.getUsername());
             profile.put("fullname", user.getFullname());
             profile.put("phone", user.getPhone());
-            profile.put("address", user.getAddress());
             profile.put("email", user.getEmail());
+
+            // [LOGIC MỚI]: Lấy địa chỉ từ danh sách Address (vì đã tách bảng)
+            String displayAddress = "";
+            List<Address> addresses = user.getAddresses();
+            if (addresses != null && !addresses.isEmpty()) {
+                // Ưu tiên lấy địa chỉ mặc định, nếu không có lấy cái đầu tiên
+                Address addr = addresses.stream()
+                        .filter(a -> Boolean.TRUE.equals(a.getIsDefault()))
+                        .findFirst()
+                        .orElse(addresses.get(0));
+                
+                // Ghép chuỗi hiển thị
+                displayAddress = addr.getFullAddress(); 
+            }
+            profile.put("address", displayAddress);
+
             return ResponseEntity.ok(profile);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    // Đăng ký tài khoản
+    @PostMapping("/account/register")
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
+        try {
+            if (!registrationDTO.getPassword().equals(registrationDTO.getConfirmPassword())) {
+                return ResponseEntity.badRequest().body("Mật khẩu xác nhận không khớp.");
+            }
+            userService.register(registrationDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body("Đăng ký thành công!");
+        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+    }
+
+    // Đổi mật khẩu
+    @PutMapping("/account/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO passDto) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            
+            userService.changePassword(username, passDto);
+            return ResponseEntity.ok("Đổi mật khẩu thành công!");
+        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+    }
+
+    // Quên mật khẩu
+    @PostMapping("/auth/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
+        try {
+            userService.forgotPassword(email);
+            return ResponseEntity.ok("Mật khẩu mới đã được gửi về email.");
+        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
     // ============================================================
@@ -174,10 +239,6 @@ public class ClientRestController {
         return reviewService.getReviewsByProductId(productId); 
     }
 
-    // ============================================================
-    // 3. TƯƠNG TÁC NGƯỜI DÙNG
-    // ============================================================
-
     @PostMapping("/reviews")
     public ResponseEntity<?> postReview(@Valid @RequestBody ReviewCreationDTO reviewDto) {
         try {
@@ -190,49 +251,8 @@ public class ClientRestController {
         }
     }
 
-    @PostMapping("/account/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
-        try {
-            if (!registrationDTO.getPassword().equals(registrationDTO.getConfirmPassword())) {
-                return ResponseEntity.badRequest().body("Mật khẩu xác nhận không khớp.");
-            }
-            userService.register(registrationDTO);
-            return ResponseEntity.status(HttpStatus.CREATED).body("Đăng ký thành công!");
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
-    }
-
-    @PutMapping("/account/profile")
-    public ResponseEntity<?> updateProfile(@RequestBody UserUpdateDTO userDto) {
-        try {
-            String username = validateAndGetUsername();
-            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            
-            userService.updateProfile(username, userDto);
-            return ResponseEntity.ok("Cập nhật thành công!");
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
-    }
-
-    @PutMapping("/account/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO passDto) {
-        try {
-            String username = validateAndGetUsername();
-            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            
-            userService.changePassword(username, passDto);
-            return ResponseEntity.ok("Đổi mật khẩu thành công!");
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
-    }
-
-    @PostMapping("/auth/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
-        try {
-            userService.forgotPassword(email);
-            return ResponseEntity.ok("Mật khẩu mới đã được gửi về email.");
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
-    }
-
     // ============================================================
-    // 4. GIỎ HÀNG (CART)
+    // 3. GIỎ HÀNG (CART)
     // ============================================================
 
     @PostMapping("/cart/add")
@@ -281,10 +301,9 @@ public class ClientRestController {
     }
 
     // ============================================================
-    // 5. ĐƠN HÀNG (ORDER)
+    // 4. ĐƠN HÀNG (ORDER)
     // ============================================================
 
-    // Tạo đơn hàng mới
     @PostMapping("/orders")
     public ResponseEntity<?> placeOrder(@Valid @RequestBody OrderCreateDTO orderDTO) {
         try {
@@ -299,7 +318,6 @@ public class ClientRestController {
         }
     }
 
-    // Lấy lịch sử đơn hàng của tôi
     @GetMapping("/orders")
     public ResponseEntity<?> getOrderHistory() {
         try {
@@ -312,7 +330,6 @@ public class ClientRestController {
         }
     }
 
-    // Lấy chi tiết đơn hàng
     @GetMapping("/orders/{id}")
     public ResponseEntity<?> getOrderDetail(@PathVariable("id") Integer id) {
         try {
@@ -323,7 +340,6 @@ public class ClientRestController {
             
             if (order == null) return ResponseEntity.notFound().build();
             
-            // [BẢO MẬT] Kiểm tra xem đơn hàng có thuộc về user đang đăng nhập không
             if (!order.getAccount().getUsername().equals(username)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Bạn không có quyền xem đơn hàng này");
             }
@@ -334,7 +350,6 @@ public class ClientRestController {
         }
     }
 
-    // Hủy đơn hàng (Khi còn PENDING)
     @PutMapping("/orders/{id}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Integer id, @RequestBody Map<String, String> body) {
         try {
@@ -348,7 +363,6 @@ public class ClientRestController {
         }
     }
 
-    // API Yêu cầu hoàn trả (Đơn giản - Không ảnh) - Giữ lại để tương thích
     @PutMapping("/orders/{id}/return")
     public ResponseEntity<?> returnOrder(@PathVariable Integer id, @RequestBody Map<String, String> body) {
         try {
@@ -362,7 +376,6 @@ public class ClientRestController {
         }
     }
 
-    // API Yêu cầu hoàn trả ĐẦY ĐỦ (Có ảnh & Thông tin bank)
     @PostMapping(value = "/orders/{id}/return-request", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> requestReturnWithImages(
             @PathVariable("id") Integer id,
@@ -379,7 +392,6 @@ public class ClientRestController {
             String username = validateAndGetUsername();
             if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-            // Gọi service
             orderService.requestReturnFull(username, id, senderName, senderPhone, senderEmail, 
                                            reason, bankName, accNo, accName, qrFile, files);
             
@@ -390,7 +402,6 @@ public class ClientRestController {
         }
     }
 
-    // Ẩn/Xóa đơn hàng khỏi lịch sử
     @DeleteMapping("/orders/{id}")
     public ResponseEntity<?> deleteOrder(@PathVariable Integer id) {
         try {
@@ -404,13 +415,10 @@ public class ClientRestController {
         }
     }
     
-    // API lấy danh sách Admin để hiển thị lên combobox hoàn trả
     @GetMapping("/users/admins")
     public ResponseEntity<List<Map<String, String>>> getAdminList() {
         try {
             List<User> admins = userService.getAdmins();
-            
-            // Chuyển đổi sang list map nhỏ gọn
             List<Map<String, String>> result = admins.stream().map(u -> {
                 Map<String, String> map = new HashMap<>();
                 map.put("username", u.getUsername());

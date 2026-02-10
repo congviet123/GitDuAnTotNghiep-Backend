@@ -36,7 +36,7 @@ public class UserServiceImpl implements UserService {
     }
 
     // =========================================================
-    // 1. LOGIC QUÊN MẬT KHẨU (ĐÃ CẬP NHẬT GIAO DIỆN EMAIL)
+    // 1. LOGIC QUÊN MẬT KHẨU
     // =========================================================
     @Override
     @Transactional
@@ -50,7 +50,6 @@ public class UserServiceImpl implements UserService {
 
         String subject = "Cấp lại mật khẩu mới - Trái Cây Bay";
         
-        // --- MẪU EMAIL MỚI: ĐẸP HƠN & CÓ NÚT LOGIN ---
         String body = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fdfdfd;'>"
                 + "<h2 style='color: #007bff; text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px;'>Yêu cầu cấp lại mật khẩu</h2>"
                 + "<p>Xin chào <b>" + user.getFullname() + "</b>,</p>"
@@ -130,6 +129,8 @@ public class UserServiceImpl implements UserService {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         
+        // [SỬA LỖI]: Không setAddress vì đã tách bảng
+        
         User savedUser = userRepository.save(user);
         createCartForUser(savedUser);
 
@@ -144,7 +145,6 @@ public class UserServiceImpl implements UserService {
              throw new RuntimeException("Không tìm thấy user: " + user.getUsername());
         }
         
-        // Lưu trạng thái cũ để kiểm tra xem có thay đổi trạng thái không
         boolean oldStatus = existingUser.getEnabled();
 
         // 1. Cập nhật Role
@@ -159,15 +159,16 @@ public class UserServiceImpl implements UserService {
         // 2. Cập nhật thông tin cơ bản
         existingUser.setFullname(user.getFullname());
         existingUser.setEmail(user.getEmail());
-        existingUser.setAddress(user.getAddress());
         existingUser.setPhone(user.getPhone());
+        
+        // [SỬA LỖI]: Bỏ dòng setAddress(user.getAddress())
         
         // 3. Cập nhật trạng thái Khóa/Mở
         if (user.getEnabled() != null) {
             existingUser.setEnabled(user.getEnabled());
         }
 
-        // 4. Cập nhật mật khẩu (Nếu có nhập mới)
+        // 4. Cập nhật mật khẩu
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
         }
@@ -176,7 +177,6 @@ public class UserServiceImpl implements UserService {
 
         // --- [LOGIC GỬI EMAIL KHÓA / MỞ KHÓA] ---
         try {
-            // TRƯỜNG HỢP 1: Đang Mở -> Chuyển sang KHÓA
             if (oldStatus && !savedUser.getEnabled()) {
                 String subject = "Thông báo KHÓA tài khoản - Trái Cây Bay";
                 String body = "<div style='font-family: Arial; padding: 20px; border: 1px solid #f5c6cb; background-color: #f8d7da; border-radius: 5px;'>"
@@ -188,8 +188,6 @@ public class UserServiceImpl implements UserService {
                 
                 mailService.sendEmail(savedUser.getEmail(), subject, body);
             }
-            
-            // TRƯỜNG HỢP 2: Đang Khóa -> Chuyển sang MỞ (Active) 
             else if (!oldStatus && savedUser.getEnabled()) {
                 String subject = "Thông báo MỞ LẠI tài khoản - Trái Cây Bay";
                 String body = "<div style='font-family: Arial; padding: 20px; border: 1px solid #c3e6cb; background-color: #d4edda; border-radius: 5px;'>"
@@ -208,7 +206,6 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             System.err.println("Lỗi gửi mail user update: " + e.getMessage());
         }
-        // ----------------------------------------------
         
         return savedUser;
     }
@@ -246,14 +243,15 @@ public class UserServiceImpl implements UserService {
         if (!registrationDTO.getPassword().equals(registrationDTO.getConfirmPassword())) throw new RuntimeException("Mật khẩu không khớp.");
         
         Role userRole = roleRepository.findByName(DEFAULT_USER_ROLE_NAME)
-                                        .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: Role mặc định không tồn tại."));
+                                      .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: Role mặc định không tồn tại."));
         
         User newUser = new User();
+        // Copy các thuộc tính trùng tên (username, password, fullname, email...)
         BeanUtils.copyProperties(registrationDTO, newUser);
+        
         newUser.setPassword(passwordEncoder.encode(registrationDTO.getPassword()));
         newUser.setRole(userRole);
         newUser.setEnabled(true);
-        if (newUser.getAddress() == null) newUser.setAddress("");
         if (newUser.getPhone() == null) newUser.setPhone("");
         
         User savedUser = userRepository.save(newUser);
@@ -274,8 +272,8 @@ public class UserServiceImpl implements UserService {
         }
         existingUser.setFullname(updateDTO.getFullname());
         existingUser.setEmail(updateDTO.getEmail());
-        existingUser.setAddress(updateDTO.getAddress());
         existingUser.setPhone(updateDTO.getPhone());
+        
         return userRepository.save(existingUser);
     }
 
