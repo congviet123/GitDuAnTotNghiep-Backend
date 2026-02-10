@@ -1,199 +1,142 @@
 package poly.edu.service.impl;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import poly.edu.entity.Cart;
-import poly.edu.entity.CartItem;
 import poly.edu.entity.Product;
-import poly.edu.entity.User; // Hoặc Account tùy entity bạn đặt
-import poly.edu.entity.dto.CartItemDTO;
-import poly.edu.repository.CartItemRepository;
+import poly.edu.entity.User;
 import poly.edu.repository.CartRepository;
 import poly.edu.repository.ProductRepository;
-import poly.edu.repository.UserRepository; // Hoặc AccountRepository
+import poly.edu.repository.UserRepository;
 import poly.edu.service.ShoppingCartService;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
-// Bỏ @SessionScope vì chúng ta lưu thẳng xuống DB
 public class ShoppingCartServiceImpl implements ShoppingCartService {
 
     @Autowired
-    private ProductRepository productRepository;
-    @Autowired
     private CartRepository cartRepository;
-    @Autowired
-    private CartItemRepository cartItemRepository;
-    @Autowired
-    private UserRepository userRepository; // Dùng để tìm người dùng hiện tại
-    @Autowired
-    private HttpServletRequest request; // Dùng để lấy username từ session
 
-    // Helper: Lấy người dùng đang đăng nhập
-    private User getCurrentUser() {
-        String username = request.getRemoteUser(); // Lấy từ Spring Security
-        if (username == null) return null; // Chưa đăng nhập
-        return userRepository.findById(username).orElse(null);
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public List<Cart> findAllByUsername(String username) {
+        return cartRepository.findByUser_Username(username);
     }
 
- // Helper: Lấy giỏ hàng của người dùng hiện tại
-    private Cart getCurrentCart() {
-        User user = getCurrentUser(); 
-        if (user == null) return null;
-        
-        Cart cart = cartRepository.findByAccount_Username(user.getUsername());
-        
-        if (cart == null) {
-            // Nếu chưa có giỏ thì tạo mới
-            cart = new Cart();
-            cart.setAccount(user);
-            
-            cart = cartRepository.save(cart);
-        }
-        return cart;
-    }
-
-    
-    
     @Override
     @Transactional
-    public void add(Integer productId, Double quantity) {
-        User user = getCurrentUser();
-        if (user == null) {
-            throw new RuntimeException("Vui lòng đăng nhập để mua hàng!");
-        }
-
+    public Cart add(Integer productId, Double quantity, String username) {
+        // 1. Tìm sản phẩm trong DB
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại!"));
 
-        Cart cart = getCurrentCart();
-        CartItem item = cartItemRepository.findByCartAndProduct(cart, product);
+        // 2. Tìm xem User đã có sản phẩm này trong giỏ chưa
+        Optional<Cart> existingCart = cartRepository.findByUser_UsernameAndProduct_Id(username, productId);
 
-        // 1. Tính toán số lượng mới
-        BigDecimal currentQty = (item != null) ? item.getQuantity() : BigDecimal.ZERO;
-        BigDecimal addQty = BigDecimal.valueOf(quantity);
-        BigDecimal newQty = currentQty.add(addQty);
+        if (existingCart.isPresent()) {
+            // --- TRƯỜNG HỢP CỘNG DỒN ---
+            Cart cart = existingCart.get();
+            Double currentQty = cart.getQuantity();
+            Double newQty = currentQty + quantity;
 
-        // 2. [CHECK TỒN KHO]
-        if (newQty.compareTo(product.getQuantity()) > 0) {
-            throw new RuntimeException("Số lượng trong kho chỉ còn lại " + product.getQuantity() + " kg. Xin lỗi vì sự bất tiện này, vui lòng đặt với số lượng thấp hơn.");
-        }
+            //  Check tồn kho
+            BigDecimal newQtyBD = BigDecimal.valueOf(newQty);
+            if (newQtyBD.compareTo(product.getQuantity()) > 0) {
+                throw new RuntimeException("Số lượng trong kho chỉ còn lại " + product.getQuantity() + " kg. Vui lòng đặt ít hơn.");
+            }
 
-        // 3. Lưu vào DB
-        if (item == null) {
-            item = new CartItem();
-            item.setCart(cart);
-            item.setProduct(product);
-            item.setQuantity(addQty);
+            cart.setQuantity(newQty);
+            return cartRepository.save(cart);
         } else {
-            item.setQuantity(newQty);
-        }
-        cartItemRepository.save(item);
-    }
-
-    @Override
-    @Transactional
-    public void remove(Integer productId) {
-        Cart cart = getCurrentCart();
-        if (cart != null) {
-            Product product = productRepository.findById(productId).orElse(null);
-            if (product != null) {
-                CartItem item = cartItemRepository.findByCartAndProduct(cart, product);
-                if (item != null) {
-                    cartItemRepository.delete(item);
-                }
+            // --- TRƯỜNG HỢP THÊM MỚI ---
+            
+            // Check tồn kho cho số lượng mới thêm
+            BigDecimal reqQtyBD = BigDecimal.valueOf(quantity);
+            if (reqQtyBD.compareTo(product.getQuantity()) > 0) {
+                throw new RuntimeException("Số lượng trong kho chỉ còn lại " + product.getQuantity() + " kg.");
             }
+
+            Cart newCart = new Cart();
+            
+            // Set User (Giả lập đối tượng User để Hibernate map khóa ngoại, không cần query lại DB)
+            User user = new User();
+            user.setUsername(username);
+            newCart.setUser(user);
+
+            newCart.setProduct(product);
+            newCart.setQuantity(quantity);
+
+            return cartRepository.save(newCart);
         }
     }
 
     @Override
     @Transactional
-    public void update(Integer productId, Double quantity) {
-        Cart cart = getCurrentCart();
-        if (cart == null) return;
+    public Cart update(Integer cartId, Double quantity) {
+        Cart cart = cartRepository.findById(cartId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy dòng giỏ hàng này!"));
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại"));
+        Product product = cart.getProduct();
 
-        // 1. [CHECK TỒN KHO]
-        BigDecimal requestQty = BigDecimal.valueOf(quantity);
-        if (requestQty.compareTo(product.getQuantity()) > 0) {
-            throw new RuntimeException("Số lượng trong kho chỉ còn lại " + product.getQuantity() + " kg. Xin lỗi vì sự bất tiện này, vui lòng đặt với số lượng thấp hơn.");
+        // [LOGIC GIỮ NGUYÊN] Check tồn kho khi cập nhật
+        BigDecimal reqQtyBD = BigDecimal.valueOf(quantity);
+        if (reqQtyBD.compareTo(product.getQuantity()) > 0) {
+            throw new RuntimeException("Số lượng trong kho chỉ còn lại " + product.getQuantity() + " kg.");
         }
 
-        // 2. Cập nhật DB
-        CartItem item = cartItemRepository.findByCartAndProduct(cart, product);
-        if (item != null) {
-            if (quantity <= 0) {
-                cartItemRepository.delete(item);
-            } else {
-                item.setQuantity(requestQty);
-                cartItemRepository.save(item);
-            }
+        if (quantity <= 0) {
+            cartRepository.delete(cart);
+            return null;
+        } else {
+            cart.setQuantity(quantity);
+            return cartRepository.save(cart);
         }
     }
 
     @Override
     @Transactional
-    public void clear() {
-        Cart cart = getCurrentCart();
-        if (cart != null) {
-            cartItemRepository.deleteByCartId(cart.getId());
+    public void remove(Integer cartId) {
+        if (cartRepository.existsById(cartId)) {
+            cartRepository.deleteById(cartId);
         }
     }
 
     @Override
     @Transactional
-    public void removeItems(List<Integer> productIds) {
-        // Hàm này xóa nhiều sp, có thể gọi hàm remove nhiều lần
-        if (productIds != null) {
-            productIds.forEach(this::remove);
-        }
+    public void clear(String username) {
+        cartRepository.deleteAllByUser_Username(username);
     }
 
     @Override
-    public List<CartItemDTO> getItems() {
-        Cart cart = getCurrentCart();
-        if (cart == null) return new ArrayList<>();
-
-        // Lấy list từ DB và chuyển sang DTO để hiển thị
-        List<CartItem> items = cartItemRepository.findByCart(cart);
+    public BigDecimal getTotalAmount(String username) {
+        List<Cart> carts = cartRepository.findByUser_Username(username);
         
-        return items.stream().map(item -> {
-            CartItemDTO dto = new CartItemDTO();
-            dto.setProductId(item.getProduct().getId());
-            dto.setProductName(item.getProduct().getName());
-            dto.setPrice(item.getProduct().getPrice());
-            dto.setImage(item.getProduct().getImage());
-            dto.setQuantity(item.getQuantity().doubleValue()); // Chuyển BigDecimal sang Double cho DTO
-            return dto;
-        }).collect(Collectors.toList());
-    }
-
-    @Override
-    public BigDecimal getAmount() {
-        List<CartItemDTO> items = getItems();
-        return items.stream()
-                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+        // Tính tổng tiền: Price * Quantity của từng dòng rồi cộng lại
+        return carts.stream()
+                .map(item -> {
+                    BigDecimal price = item.getProduct().getPrice();
+                    BigDecimal qty = BigDecimal.valueOf(item.getQuantity());
+                    return price.multiply(qty);
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
-    public int getCount() {
-        List<CartItemDTO> items = getItems();
-        return items.size();
-    }
-
-    @Override
-    public double getTotalQuantity() {
-        List<CartItemDTO> items = getItems();
-        return items.stream().mapToDouble(CartItemDTO::getQuantity).sum();
+    public Double getTotalQuantity(String username) {
+        List<Cart> carts = cartRepository.findByUser_Username(username);
+        
+        // Cộng tổng số lượng các món (để hiển thị badge giỏ hàng)
+        return carts.stream()
+                .mapToDouble(Cart::getQuantity)
+                .sum();
     }
 }

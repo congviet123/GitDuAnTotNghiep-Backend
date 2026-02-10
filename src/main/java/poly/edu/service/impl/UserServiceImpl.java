@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import poly.edu.entity.Cart; 
 import poly.edu.entity.Role;
 import poly.edu.entity.User;
 import poly.edu.entity.dto.*;
@@ -129,12 +128,9 @@ public class UserServiceImpl implements UserService {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         
-        // [SỬA LỖI]: Không setAddress vì đã tách bảng
+        // [QUAN TRỌNG]: Đã xóa hàm createCartForUser(savedUser) vì không cần thiết với DB mới
         
-        User savedUser = userRepository.save(user);
-        createCartForUser(savedUser);
-
-        return savedUser;
+        return userRepository.save(user);
     }
 
     @Override
@@ -160,8 +156,6 @@ public class UserServiceImpl implements UserService {
         existingUser.setFullname(user.getFullname());
         existingUser.setEmail(user.getEmail());
         existingUser.setPhone(user.getPhone());
-        
-        // [SỬA LỖI]: Bỏ dòng setAddress(user.getAddress())
         
         // 3. Cập nhật trạng thái Khóa/Mở
         if (user.getEnabled() != null) {
@@ -220,13 +214,14 @@ public class UserServiceImpl implements UserService {
         }
 
         try {
-            Cart cart = cartRepository.findByAccount_Username(username);
-            if (cart != null) {
-                cartRepository.delete(cart);
-            }
+            // [SỬA LỖI]: Xóa toàn bộ sản phẩm trong giỏ của user này trước khi xóa user
+            // Sử dụng hàm đã định nghĩa trong CartRepository
+            cartRepository.deleteAllByUser_Username(username);
+            
+            // Xóa user
             userRepository.deleteById(username);
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            throw new RuntimeException("Tài khoản dính líu dữ liệu khác. Không thể xóa, hãy KHÓA tài khoản.");
+            throw new RuntimeException("Tài khoản dính líu dữ liệu khác (Review, Comment...). Không thể xóa, hãy KHÓA tài khoản.");
         } catch (Exception e) {
             throw new RuntimeException("Lỗi khi xóa: " + e.getMessage());
         }
@@ -246,7 +241,6 @@ public class UserServiceImpl implements UserService {
                                       .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: Role mặc định không tồn tại."));
         
         User newUser = new User();
-        // Copy các thuộc tính trùng tên (username, password, fullname, email...)
         BeanUtils.copyProperties(registrationDTO, newUser);
         
         newUser.setPassword(passwordEncoder.encode(registrationDTO.getPassword()));
@@ -254,9 +248,8 @@ public class UserServiceImpl implements UserService {
         newUser.setEnabled(true);
         if (newUser.getPhone() == null) newUser.setPhone("");
         
-        User savedUser = userRepository.save(newUser);
-        createCartForUser(savedUser);
-        return savedUser;
+        // [QUAN TRỌNG]: Không cần tạo giỏ hàng rỗng nữa
+        return userRepository.save(newUser);
     }
 
     @Override
@@ -295,17 +288,5 @@ public class UserServiceImpl implements UserService {
 
         existingUser.setPassword(passwordEncoder.encode(passDto.getNewPassword()));
         userRepository.save(existingUser);
-    }
-
-    private void createCartForUser(User user) {
-        try {
-            if (cartRepository.findByAccount_Username(user.getUsername()) == null) {
-                Cart cart = new Cart();
-                cart.setAccount(user);
-                cartRepository.save(cart);
-            }
-        } catch (Exception e) {
-            System.err.println("Lỗi tạo Cart: " + e.getMessage());
-        }
     }
 }

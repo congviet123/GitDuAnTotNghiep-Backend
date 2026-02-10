@@ -1,4 +1,3 @@
-
 package poly.edu.controller.rest;
 
 import jakarta.validation.Valid;
@@ -10,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,7 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 import poly.edu.entity.*;
 import poly.edu.entity.dto.*;
 import poly.edu.repository.CartRepository;
-import poly.edu.repository.RoleRepository;
 import poly.edu.service.*;
 
 import java.util.HashMap;
@@ -33,21 +30,19 @@ import java.util.stream.Collectors;
 public class ClientRestController {
 
     @Autowired private UserService userService;
-    @Autowired private ShoppingCartService cartService;
+    @Autowired private ShoppingCartService cartService; // Đã sửa Service mới
     @Autowired private OrderService orderService;
     @Autowired private ProductService productService;
     @Autowired private ReviewService reviewService;
     @Autowired private CategoryService categoryService;
     
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private RoleRepository roleRepository;
     @Autowired private CartRepository cartRepository; 
 
     // --- HELPER: LẤY USERNAME TỪ SECURITY CONTEXT ---
     private String validateAndGetUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            return null; // Chưa đăng nhập
+            return null; 
         }
 
         Object principal = authentication.getPrincipal();
@@ -57,7 +52,6 @@ public class ClientRestController {
             OAuth2User oauth2User = (OAuth2User) principal;
             String email = oauth2User.getAttribute("email");
 
-            // 1. Tìm User trong DB bằng Email
             Optional<User> existingUserOpt = userService.findByEmail(email);
             
             if (existingUserOpt.isEmpty()) {
@@ -66,7 +60,6 @@ public class ClientRestController {
 
             User currentUser = existingUserOpt.get();
 
-            // Cập nhật Security Context để dùng Username gốc của DB
             if (!authentication.getName().equals(currentUser.getUsername())) {
                 UsernamePasswordAuthenticationToken newAuth = new UsernamePasswordAuthenticationToken(
                     currentUser.getUsername(), 
@@ -75,24 +68,18 @@ public class ClientRestController {
                 );
                 SecurityContextHolder.getContext().setAuthentication(newAuth);
             }
-
-            // 2. Kiểm tra Giỏ hàng
-            if (cartRepository.findByAccount_Username(currentUser.getUsername()) == null) {
-                throw new RuntimeException("Tài khoản " + currentUser.getUsername() + " chưa được khởi tạo Giỏ hàng. Vui lòng liên hệ Admin.");
-            }
-
+            
+            // Logic cũ check cart header có thể bỏ qua vì giờ cart tự tạo khi add
             return currentUser.getUsername();
         }
         
-        // --- TRƯỜNG HỢP: ĐĂNG NHẬP THƯỜNG ---
         return authentication.getName();
     }
 
     // ============================================================
-    // 1. TÀI KHOẢN (PROFILE & AUTH)
+    // 1. TÀI KHOẢN (PROFILE & AUTH) - GIỮ NGUYÊN
     // ============================================================
 
-    // Lấy thông tin chi tiết (Full Profile)
     @GetMapping("/account/profile")
     public ResponseEntity<?> getProfile() {
         try {
@@ -106,7 +93,6 @@ public class ClientRestController {
         }
     }
 
-    // Cập nhật thông tin User (Họ tên, Email, SĐT)
     @PutMapping("/account/profile")
     public ResponseEntity<?> updateProfile(@RequestBody UserUpdateDTO userDto) {
         try {
@@ -120,7 +106,6 @@ public class ClientRestController {
         }
     }
 
-    // Lấy thông tin rút gọn (Short Profile cho Header/Checkout)
     @GetMapping("/client/profile")
     public ResponseEntity<?> getClientProfileShort() {
         try {
@@ -136,17 +121,13 @@ public class ClientRestController {
             profile.put("phone", user.getPhone());
             profile.put("email", user.getEmail());
 
-            // [LOGIC MỚI]: Lấy địa chỉ từ danh sách Address (vì đã tách bảng)
             String displayAddress = "";
             List<Address> addresses = user.getAddresses();
             if (addresses != null && !addresses.isEmpty()) {
-                // Ưu tiên lấy địa chỉ mặc định, nếu không có lấy cái đầu tiên
                 Address addr = addresses.stream()
                         .filter(a -> Boolean.TRUE.equals(a.getIsDefault()))
                         .findFirst()
                         .orElse(addresses.get(0));
-                
-                // Ghép chuỗi hiển thị
                 displayAddress = addr.getFullAddress(); 
             }
             profile.put("address", displayAddress);
@@ -157,7 +138,6 @@ public class ClientRestController {
         }
     }
 
-    // Đăng ký tài khoản
     @PostMapping("/account/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
         try {
@@ -169,7 +149,6 @@ public class ClientRestController {
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
-    // Đổi mật khẩu
     @PutMapping("/account/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO passDto) {
         try {
@@ -181,7 +160,6 @@ public class ClientRestController {
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
-    // Quên mật khẩu
     @PostMapping("/auth/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
         try {
@@ -191,7 +169,7 @@ public class ClientRestController {
     }
 
     // ============================================================
-    // 2. SẢN PHẨM & DANH MỤC
+    // 2. SẢN PHẨM & DANH MỤC - GIỮ NGUYÊN
     // ============================================================
     
     @GetMapping("/client/categories")
@@ -252,56 +230,69 @@ public class ClientRestController {
     }
 
     // ============================================================
-    // 3. GIỎ HÀNG (CART)
+    // 3. GIỎ HÀNG (CART) - [ĐÃ SỬA CHO KHỚP VỚI CẤU TRÚC MỚI]
     // ============================================================
 
+    // Thêm vào giỏ: Thay vì nhận DTO, ta nhận trực tiếp productId và quantity
+    // Nếu Frontend vẫn gửi JSON {productId: 1, quantity: 2}, ta có thể dùng Map hoặc Class DTO nhỏ
     @PostMapping("/cart/add")
-    public ResponseEntity<?> addItemToCart(@RequestBody CartItemDTO itemDto) {
+    public ResponseEntity<?> addItemToCart(@RequestBody Map<String, Object> payload) {
         try {
             String username = validateAndGetUsername(); 
             if (username == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Vui lòng đăng nhập để mua hàng.");
             }
             
-            cartService.add(itemDto.getProductId(), itemDto.getQuantity());
-            return ResponseEntity.ok(cartService.getTotalQuantity());
+            Integer productId = (Integer) payload.get("productId");
+            // Xử lý quantity an toàn (vì JSON số có thể là Integer hoặc Double)
+            Double quantity = Double.valueOf(payload.get("quantity").toString());
+
+            cartService.add(productId, quantity, username);
+            return ResponseEntity.ok(cartService.getTotalQuantity(username));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    // Lấy giỏ hàng: Trả về List<Cart> (Entity mới)
     @GetMapping("/cart")
     public ResponseEntity<?> getCartItems() {
         try {
-            validateAndGetUsername(); 
-            return ResponseEntity.ok(cartService.getItems());
+            String username = validateAndGetUsername(); 
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Chưa đăng nhập");
+            
+            return ResponseEntity.ok(cartService.findAllByUsername(username));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    // Cập nhật số lượng
     @PutMapping("/cart/{id}")
     public ResponseEntity<?> updateCartItem(@PathVariable("id") Integer id, @RequestParam("quantity") Double qty) {
         try {
+            String username = validateAndGetUsername();
             cartService.update(id, qty);
-            return ResponseEntity.ok(cartService.getItems());
+            return ResponseEntity.ok(cartService.findAllByUsername(username)); // Trả về list mới để cập nhật UI
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    // Xóa sản phẩm
     @DeleteMapping("/cart/{id}")
     public ResponseEntity<?> removeCartItem(@PathVariable("id") Integer id) {
         try {
+            String username = validateAndGetUsername();
             cartService.remove(id);
-            return ResponseEntity.ok(cartService.getItems());
+            return ResponseEntity.ok(cartService.findAllByUsername(username));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
     // ============================================================
-    // 4. ĐƠN HÀNG (ORDER)
+    // 4. ĐƠN HÀNG (ORDER) - GIỮ NGUYÊN
     // ============================================================
 
     @PostMapping("/orders")

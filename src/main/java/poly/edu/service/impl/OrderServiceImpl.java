@@ -4,13 +4,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import poly.edu.entity.Cart;
 import poly.edu.entity.Order;
 import poly.edu.entity.OrderDetail;
 import poly.edu.entity.Product;
 import poly.edu.entity.User;
-import poly.edu.entity.dto.CartItemDTO;
 import poly.edu.entity.dto.OrderCreateDTO;
 import poly.edu.entity.dto.OrderListDTO;
+import poly.edu.repository.CartRepository;
 import poly.edu.repository.OrderDetailRepository;
 import poly.edu.repository.OrderRepository;
 import poly.edu.repository.ProductRepository;
@@ -18,6 +19,8 @@ import poly.edu.repository.UserRepository;
 import poly.edu.service.MailService;
 import poly.edu.service.OrderService;
 import poly.edu.service.ShoppingCartService;
+
+
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,9 +38,9 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private UserRepository userRepository;
     @Autowired private ProductRepository productRepository;
     @Autowired private ShoppingCartService cartService;
+    @Autowired private CartRepository cartRepository;
     @Autowired private MailService mailService;
     
-    // Helper chuyển đổi Entity sang DTO để hiển thị danh sách rút gọn
     private OrderListDTO mapToDto(Order order) {
         OrderListDTO dto = new OrderListDTO();
         dto.setId(order.getId());
@@ -49,21 +52,13 @@ public class OrderServiceImpl implements OrderService {
         return dto;
     }
     
-    // =========================================================================
-    // 1. [CẬP NHẬT] PHƯƠNG THỨC LỌC ADMIN: THÊM PAYMENT METHOD
-    // =========================================================================
     @Override
     public List<Order> filterOrdersForAdmin(String status, String paymentMethod, LocalDateTime start, LocalDateTime end) {
-        // Chuyển đổi "ALL" hoặc rỗng thành null để Repository bỏ qua điều kiện lọc đó
         String statusParam = (status == null || status.equals("ALL")) ? null : status;
-     // Trong OrderServiceImpl.java
         String methodParam = (paymentMethod == null || paymentMethod.equals("ALL")) ? null : paymentMethod;
         return orderRepository.filterOrders(statusParam, methodParam, start, end);
     }
     
-    // =========================================================================
-    // 2. TẠO ĐƠN HÀNG MỚI (GIỮ NGUYÊN LOGIC TRỪ KHO)
-    // =========================================================================
     @Override
     @Transactional
     public Order placeOrder(String username, OrderCreateDTO orderDTO) {
@@ -72,9 +67,11 @@ public class OrderServiceImpl implements OrderService {
         
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<OrderDetail> details = new ArrayList<>();
-        List<Integer> purchasedProductIds = new ArrayList<>();
+        List<Integer> cartIdsToDelete = new ArrayList<>();
 
-        for (CartItemDTO item : orderDTO.getItems()) {
+     
+        for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
+            
             Product product = productRepository.findById(item.getProductId())
                     .orElseThrow(() -> new RuntimeException("Sản phẩm ID " + item.getProductId() + " không tồn tại."));
             
@@ -84,7 +81,6 @@ public class OrderServiceImpl implements OrderService {
                 throw new RuntimeException("Sản phẩm '" + product.getName() + "' không đủ số lượng.");
             }
 
-            // Trừ số lượng tồn kho
             BigDecimal newStock = product.getQuantity().subtract(buyQuantity);
             product.setQuantity(newStock);
             if (newStock.compareTo(BigDecimal.ZERO) <= 0) product.setAvailable(false);
@@ -98,7 +94,10 @@ public class OrderServiceImpl implements OrderService {
             detail.setPrice(product.getPrice());
             detail.setProduct(product);
             details.add(detail);
-            purchasedProductIds.add(item.getProductId());
+            
+            // Tìm CartID để xóa
+            Optional<Cart> cartItem = cartRepository.findByUser_UsernameAndProduct_Id(username, item.getProductId());
+            cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 
         Order order = new Order();
@@ -115,13 +114,15 @@ public class OrderServiceImpl implements OrderService {
             orderDetailRepository.save(detail);
         }
         
-        cartService.removeItems(purchasedProductIds);
+        for (Integer cartId : cartIdsToDelete) {
+            cartService.remove(cartId);
+        }
+        
         return savedOrder;
     }
 
-    // =========================================================================
-    // 3. YÊU CẦU HOÀN TRẢ ĐẦY ĐỦ (EMAIL HTML + QR CODE)
-    // =========================================================================
+    // --- CÁC HÀM KHÁC GIỮ NGUYÊN (Chỉ cần copy lại phần dưới) ---
+
     @Override
     @Transactional
     public void requestReturnFull(String username, Integer orderId, 
@@ -143,7 +144,6 @@ public class OrderServiceImpl implements OrderService {
         order.setNotes((order.getNotes() == null ? "" : order.getNotes()) + returnInfo);
         orderRepository.save(order);
 
-        // Xây dựng bảng sản phẩm HTML
         StringBuilder productTable = new StringBuilder("<table style='width:100%; border-collapse: collapse; font-size: 14px;'>");
         productTable.append("<tr style='background: #f2f2f2;'><th>Sản phẩm</th><th>SL</th><th>Giá</th><th>Tổng</th></tr>");
         java.text.NumberFormat vnCurrency = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
@@ -177,9 +177,6 @@ public class OrderServiceImpl implements OrderService {
         mailService.sendEmailWithReturnRequest(subject, body, qrFile, files); 
     }
 
-    // =========================================================================
-    // 4. CÁC TÍNH NĂNG KHÁC (HỦY, ẨN, ĐỌC DỮ LIỆU) - GIỮ NGUYÊN
-    // =========================================================================
     @Override
     @Transactional
     public Order cancelOrder(String username, Integer orderId, String reason) {
