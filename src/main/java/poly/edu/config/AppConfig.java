@@ -1,3 +1,5 @@
+// Đây là lớp cấu hình chung cho ứng dụng, nơi chúng ta khai báo các Bean dùng chung
+
 package poly.edu.config;
 
 import org.springframework.context.annotation.Bean;

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 public class ClientRestController {
 
     @Autowired private UserService userService;
-    @Autowired private ShoppingCartService cartService; // Đã sửa Service mới
+    @Autowired private ShoppingCartService cartService;
     @Autowired private OrderService orderService;
     @Autowired private ProductService productService;
     @Autowired private ReviewService reviewService;
@@ -69,15 +69,15 @@ public class ClientRestController {
                 SecurityContextHolder.getContext().setAuthentication(newAuth);
             }
             
-            // Logic cũ check cart header có thể bỏ qua vì giờ cart tự tạo khi add
             return currentUser.getUsername();
         }
         
         return authentication.getName();
     }
 
+
     // ============================================================
-    // 1. TÀI KHOẢN (PROFILE & AUTH) - GIỮ NGUYÊN
+    // 1. TÀI KHOẢN (PROFILE & AUTH)
     // ============================================================
 
     @GetMapping("/account/profile")
@@ -168,8 +168,9 @@ public class ClientRestController {
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
+
     // ============================================================
-    // 2. SẢN PHẨM & DANH MỤC - GIỮ NGUYÊN
+    // 2. SẢN PHẨM & DANH MỤC
     // ============================================================
     
     @GetMapping("/client/categories")
@@ -217,6 +218,18 @@ public class ClientRestController {
         return reviewService.getReviewsByProductId(productId); 
     }
 
+    // Kiểm tra xem User có được phép hiện Form đánh giá không
+    @GetMapping("/client/products/{productId}/can-review")
+    public ResponseEntity<Boolean> checkCanReview(@PathVariable Integer productId) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.ok(false); // Chưa đăng nhập -> Cấm
+            return ResponseEntity.ok(reviewService.canReview(username, productId));
+        } catch (Exception e) {
+            return ResponseEntity.ok(false);
+        }
+    }
+
     @PostMapping("/reviews")
     public ResponseEntity<?> postReview(@Valid @RequestBody ReviewCreationDTO reviewDto) {
         try {
@@ -229,12 +242,11 @@ public class ClientRestController {
         }
     }
 
+
     // ============================================================
-    // 3. GIỎ HÀNG (CART) - [ĐÃ SỬA CHO KHỚP VỚI CẤU TRÚC MỚI]
+    // 3. GIỎ HÀNG (CART)
     // ============================================================
 
-    // Thêm vào giỏ: Thay vì nhận DTO, ta nhận trực tiếp productId và quantity
-    // Nếu Frontend vẫn gửi JSON {productId: 1, quantity: 2}, ta có thể dùng Map hoặc Class DTO nhỏ
     @PostMapping("/cart/add")
     public ResponseEntity<?> addItemToCart(@RequestBody Map<String, Object> payload) {
         try {
@@ -244,7 +256,6 @@ public class ClientRestController {
             }
             
             Integer productId = (Integer) payload.get("productId");
-            // Xử lý quantity an toàn (vì JSON số có thể là Integer hoặc Double)
             Double quantity = Double.valueOf(payload.get("quantity").toString());
 
             cartService.add(productId, quantity, username);
@@ -254,7 +265,6 @@ public class ClientRestController {
         }
     }
 
-    // Lấy giỏ hàng: Trả về List<Cart> (Entity mới)
     @GetMapping("/cart")
     public ResponseEntity<?> getCartItems() {
         try {
@@ -267,19 +277,17 @@ public class ClientRestController {
         }
     }
 
-    // Cập nhật số lượng
     @PutMapping("/cart/{id}")
     public ResponseEntity<?> updateCartItem(@PathVariable("id") Integer id, @RequestParam("quantity") Double qty) {
         try {
             String username = validateAndGetUsername();
             cartService.update(id, qty);
-            return ResponseEntity.ok(cartService.findAllByUsername(username)); // Trả về list mới để cập nhật UI
+            return ResponseEntity.ok(cartService.findAllByUsername(username)); 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // Xóa sản phẩm
     @DeleteMapping("/cart/{id}")
     public ResponseEntity<?> removeCartItem(@PathVariable("id") Integer id) {
         try {
@@ -291,8 +299,9 @@ public class ClientRestController {
         }
     }
 
+
     // ============================================================
-    // 4. ĐƠN HÀNG (ORDER) - GIỮ NGUYÊN
+    // 4. ĐƠN HÀNG (ORDER)
     // ============================================================
 
     @PostMapping("/orders")

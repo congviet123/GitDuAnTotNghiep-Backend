@@ -8,6 +8,8 @@ public interface ReviewService {
     
     List<Review> getReviewsByProductId(Integer productId);
     
-    // BẮT BUỘC: Phương thức lưu đánh giá phải được khai báo
+    boolean canReview(String username, Integer productId);
+    
+    //  Phương thức lưu đánh giá phải được khai báo
     Review saveReview(String username, ReviewCreationDTO reviewDto);
 }
