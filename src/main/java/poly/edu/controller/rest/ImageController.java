@@ -23,7 +23,7 @@ import java.time.Duration;
 import java.util.Base64;
 
 @RestController
-@RequestMapping("/imgs")
+@RequestMapping("/rest/imgs")
 public class ImageController {
 
     // Return image bytes if present in classpath:/static/imgs/ or file:src/main/resources/static/imgs/;

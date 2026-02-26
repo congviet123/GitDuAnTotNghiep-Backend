@@ -1,5 +1,8 @@
+// Filter này sẽ được Spring Boot tự động phát hiện và áp dụng cho tất cả các request đến ứng dụng. 
+// Nó sẽ đo thời gian bắt đầu và kết thúc của mỗi request, sau đó tính toán thời gian xử lý và log kết quả. 
+// Nếu thời gian xử lý vượt quá ngưỡng đã định (200ms), nó sẽ log ở mức WARN để dễ dàng nhận biết các request chậm.
 package poly.edu.config;
-
+// Filter này sẽ log thời gian xử lý của mỗi request. Nếu request nào mất hơn 200ms, nó sẽ log ở mức WARN để dễ dàng phát hiện các request chậm.
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

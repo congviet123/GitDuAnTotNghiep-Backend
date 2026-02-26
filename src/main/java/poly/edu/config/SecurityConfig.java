@@ -99,6 +99,7 @@ public class SecurityConfig {
             .securityContext(securityContext -> securityContext.requireExplicitSave(false))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
+            	.requestMatchers("/rest/**").permitAll() 
                 .requestMatchers("/imgs/**", "/css/**", "/js/**", "/static/**", "/error").permitAll()
                 .requestMatchers("/rest/account/register").permitAll() 
                 .requestMatchers("/rest/client/**", "/rest/auth/**").permitAll()
@@ -112,7 +113,7 @@ public class SecurityConfig {
                 .defaultSuccessUrl("http://localhost:5173/login?google_success=true", true)
                 .failureHandler(authenticationFailureHandler()) // Sử dụng Handler đã sửa
             );
-
+        	
         return http.build();
     }
 }

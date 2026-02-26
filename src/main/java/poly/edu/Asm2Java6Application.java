@@ -8,10 +8,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EnableAsync
 public class Asm2Java6Application {
 
-	public static void main(String[] args) {
-		SpringApplication.run(Asm2Java6Application.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(Asm2Java6Application.class, args);
+    }
 
 }
-
-

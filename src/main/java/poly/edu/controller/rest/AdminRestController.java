@@ -44,7 +44,7 @@ public class AdminRestController {
     @Autowired private MailService mailService;
     @Autowired private OrderRepository orderRepository; 
     @Autowired private PdfService pdfService; 
-    @Autowired private RoleRepository roleRepository; // [MỚI] Inject RoleRepository để lấy danh sách Role
+    @Autowired private RoleRepository roleRepository; // Inject RoleRepository để lấy danh sách Role
 
     // ======================================================================
     // 1. QUẢN LÝ SẢN PHẨM (GIỮ NGUYÊN)

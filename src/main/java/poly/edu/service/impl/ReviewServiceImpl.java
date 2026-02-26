@@ -3,10 +3,11 @@ package poly.edu.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import poly.edu.entity.OrderDetail;
 import poly.edu.entity.Review;
 import poly.edu.entity.User;
 import poly.edu.entity.dto.ReviewCreationDTO;
-import poly.edu.repository.ProductRepository;
+import poly.edu.repository.OrderDetailRepository;
 import poly.edu.repository.ReviewRepository;
 import poly.edu.repository.UserRepository; 
 import poly.edu.service.ReviewService;
@@ -18,8 +19,10 @@ import java.util.Date;
 public class ReviewServiceImpl implements ReviewService {
 
     @Autowired private ReviewRepository reviewRepository;
-    @Autowired private ProductRepository productRepository;
     @Autowired private UserRepository userRepository; 
+    
+    // Dùng OrderDetailRepository thay vì ProductRepository
+    @Autowired private OrderDetailRepository orderDetailRepository; 
 
     @Override
     @Transactional(readOnly = true) 
@@ -27,8 +30,8 @@ public class ReviewServiceImpl implements ReviewService {
         
         List<Review> reviews = reviewRepository.findByProductId(productId);
         
-        // BẮT BUỘC: Buộc tải đối tượng User để trường Transient hoạt động.
-        // Đây là lớp bảo vệ cuối cùng chống lại lỗi Lazy Loading.
+        // Buộc tải đối tượng User để trường Transient hoạt động.
+        // Đây là lớp bảo vệ cuối cùng chống lại lỗi Lazy Loading. (Giữ nguyên logic của bạn)
         reviews.forEach(review -> {
             if (review.getUser() != null) {
                 // Kích hoạt Lazy Loading
@@ -38,28 +41,43 @@ public class ReviewServiceImpl implements ReviewService {
         
         return reviews;
     }
+
+ 
+    @Transactional(readOnly = true)
+    public boolean canReview(String username, Integer productId) {
+        List<OrderDetail> eligibles = orderDetailRepository.findEligibleOrderDetailsForReview(username, productId);
+        return !eligibles.isEmpty();
+    }
     
     @Override 
     @Transactional 
     public Review saveReview(String username, ReviewCreationDTO reviewDto) {
         
-        // 1. Tìm User và Product (Đảm bảo tồn tại)
+        // 1. Tìm User (Đảm bảo tồn tại)
         User user = userRepository.findById(username)
                     .orElseThrow(() -> new RuntimeException("Lỗi bảo mật: Người dùng không tồn tại."));
         
-        return productRepository.findById(reviewDto.getProductId())
-                .map(product -> {
-                    // 2. Tạo đối tượng Review mới
-                    Review review = new Review();
-                    review.setProduct(product);
-                    review.setUser(user);
-                    review.setComment(reviewDto.getComment());
-                    review.setRating(reviewDto.getRating());
-                    review.setReviewDate(new Date()); 
-                    
-                    // 3. Lưu Review
-                    return reviewRepository.save(review);
-                })
-                .orElseThrow(() -> new RuntimeException("Sản phẩm không tồn tại."));
+        // 2. [LOGIC MỚI] Kiểm tra xem khách hàng này có đơn hàng hợp lệ để đánh giá không
+        List<OrderDetail> eligibles = orderDetailRepository.findEligibleOrderDetailsForReview(username, reviewDto.getProductId());
+        
+        if (eligibles.isEmpty()) {
+            throw new RuntimeException("Bạn chỉ được đánh giá khi đã mua, nhận hàng thành công, và chưa đánh giá lượt mua này!");
+        }
+
+        // 3. Lấy lượt mua đầu tiên hợp lệ để gắn vào Review
+        OrderDetail validOrderDetail = eligibles.get(0);
+
+        // 4. Tạo và lưu Review
+        Review review = new Review();
+        review.setUser(user);
+        
+        //  Gắn Review vào Chi tiết đơn hàng, KHÔNG gắn vào Product nữa
+        review.setOrderDetail(validOrderDetail); 
+        
+        review.setComment(reviewDto.getComment());
+        review.setRating(reviewDto.getRating());
+        review.setReviewDate(new Date()); 
+        
+        return reviewRepository.save(review);
     }
 }
