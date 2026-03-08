@@ -11,9 +11,8 @@ import java.util.Optional;
 
 public interface OrderService {
     
-    // =========================================================================
+
     // 1. PHƯƠNG THỨC DÀNH CHO KHÁCH HÀNG (CLIENT)
-    // =========================================================================
     
     /**
      * Tạo đơn hàng mới từ giỏ hàng.
@@ -35,6 +34,13 @@ public interface OrderService {
      */
     Order cancelOrder(String username, Integer orderId, String reason);
 
+    // --- HỦY ĐƠN HÀNG ĐÃ THANH TOÁN (CẦN HOÀN TIỀN) ---
+    /**
+     * Khách hàng tự hủy đơn hàng đã thanh toán (Cần thông tin thẻ ngân hàng để hoàn tiền).
+     */
+    void cancelPaidOrder(String username, Integer orderId, String reason, 
+                         String bankName, String accNo, String accName, MultipartFile qrFile);
+
     /**
      * Khách hàng gửi yêu cầu hoàn trả cơ bản.
      */
@@ -54,10 +60,8 @@ public interface OrderService {
     void hideOrder(String username, Integer orderId);
 
     
-    // =========================================================================
-    // 2. PHƯƠNG THỨC DÀNH CHO QUẢN TRỊ VIÊN (ADMIN)
-    // =========================================================================
     
+    // 2. PHƯƠNG THỨC DÀNH CHO QUẢN TRỊ VIÊN (ADMIN)
     /**
      * Lấy tất cả đơn hàng (Entity đầy đủ).
      */
@@ -82,6 +86,12 @@ public interface OrderService {
      * Cập nhật trạng thái đơn hàng (Duyệt đơn, Giao hàng, Hoàn tất...).
      */
     Order updateStatus(Integer orderId, String newStatus); 
+
+    // --- CỘNG LẠI TỒN KHO THỦ CÔNG ---
+    /**
+     * Cộng lại số lượng sản phẩm vào kho cho đơn hàng hoàn trả (Thao tác thủ công của Admin).
+     */
+    void restockReturnedOrder(Integer orderId);
     
     /**
      * Lấy dữ liệu doanh thu 12 tháng để vẽ biểu đồ.
@@ -89,7 +99,7 @@ public interface OrderService {
     List<Double> getMonthlyRevenue(Integer year);
 
     /**
-     *  Bộ lọc nâng cao dành cho Admin.
+     * Bộ lọc nâng cao dành cho Admin.
      * @param status Trạng thái đơn hàng (PENDING, DELIVERED...)
      * @param paymentMethod Hình thức thanh toán (CASH, TRANSFER...)
      * @param start Thời điểm bắt đầu
