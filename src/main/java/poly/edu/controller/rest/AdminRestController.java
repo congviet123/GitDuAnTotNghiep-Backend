@@ -46,7 +46,7 @@ public class AdminRestController {
     @Autowired private RoleRepository roleRepository; // Inject RoleRepository để lấy danh sách Role
 
     // ======================================================================
-    // 1. QUẢN LÝ SẢN PHẨM (GIỮ NGUYÊN)
+    // 1. QUẢN LÝ SẢN PHẨM
     // ======================================================================
     @GetMapping("/products")
     public ResponseEntity<?> getAllProducts(

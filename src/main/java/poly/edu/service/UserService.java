@@ -34,13 +34,12 @@ public interface UserService {
 
     void changePassword(String username, ChangePasswordDTO passDto);
     
-    void forgotPassword(String email);
     
     List<User> getAdmins();
     
     void setupNewPassword(String username, String newPassword);
     
-    
+    // --- Tính năng lấy lại mật khẩu bằng OTP ---
     void generateAndSendOtp(String email);
     void verifyOtp(String email, String userInputOtp);
     void resetPasswordWithOtp(String email, String newPassword);

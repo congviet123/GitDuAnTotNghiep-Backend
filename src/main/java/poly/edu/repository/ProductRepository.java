@@ -26,10 +26,20 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     Page<Product> findAllWithCategory(Pageable pageable);
 
     // =================================================================================
-    // 2. CÁC HÀM DÀNH CHO KHÁCH HÀNG (BẮT BUỘC PHẢI CÓ GIÁ > 0 VÀ AVAILABLE = TRUE)
+    // 2. CÁC HÀM DÀNH CHO KHÁCH HÀNG (Chỉ lấy sản phẩm có giá > 0 và đang có sẵn)
     // =================================================================================
     
-    // Lấy sp bán chạy (Sắp xếp theo giá giảm dần - demo logic)
+    // LẤY SẢN PHẨM BÁN CHẠY THỰC TẾ (Dựa trên tổng số lượng bán từ đơn COMPLETED)
+    @Query("SELECT od.product FROM OrderDetail od " +
+           "JOIN od.order o " +
+           "WHERE o.status = 'COMPLETED' " +
+           "AND od.product.available = true " +
+           "AND od.product.price > 0 " +
+           "GROUP BY od.product " +
+           "ORDER BY SUM(od.quantity) DESC")
+    Page<Product> findTopSellingProducts(Pageable pageable);
+
+    // Lấy sp bán chạy (Sắp xếp theo giá giảm dần - demo logic cũ, giữ lại để không lỗi code cũ)
     @Query(value = "SELECT p FROM Product p LEFT JOIN FETCH p.category c WHERE p.available = true AND p.price > 0 ORDER BY p.price DESC",
            countQuery = "SELECT count(p) FROM Product p WHERE p.available = true AND p.price > 0")
     Page<Product> findAvailableOrderByPriceDesc(Pageable pageable);

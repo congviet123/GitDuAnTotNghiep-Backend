@@ -14,18 +14,19 @@ import poly.edu.service.ImportService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
+@Transactional // Đảm bảo nếu bị lỗi giữa chừng (vd mất mạng), phiếu nhập và số lượng kho sẽ được Rollback lại trạng thái cũ, không bị sai lệch số liệu.
 public class ImportServiceImpl implements ImportService {
 
     @Autowired
     ImportRepository importRepo;
 
     @Autowired
-    ProductRepository productRepo;   // 🔥 THÊM CÁI NÀY
+    ProductRepository productRepo;
 
     @Override
     public Import create(ImportDTO dto) {
@@ -39,26 +40,40 @@ public class ImportServiceImpl implements ImportService {
 
         List<ImportDetail> details = dto.getDetails().stream().map(d -> {
 
-            // 🔥 LẤY PRODUCT
-        	Product product = productRepo.findById(d.getProductId())
-        	        .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+            // 1. LẤY SẢN PHẨM TỪ DATABASE LÊN ĐỂ CHUẨN BỊ CẬP NHẬT
+            Product product = productRepo.findById(d.getProductId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
 
-        	BigDecimal currentQty = product.getQuantity() == null
-        	        ? BigDecimal.ZERO
-        	        : product.getQuantity();
+            // Nếu tồn kho cũ bị null thì gán tạm bằng 0
+            BigDecimal currentQty = product.getQuantity() == null
+                ? BigDecimal.ZERO
+                : product.getQuantity();
 
-        	BigDecimal importQty = BigDecimal.valueOf(d.getQuantity());
+            // Chuyển đổi an toàn sang BigDecimal (tránh lỗi nếu DTO gửi từ VueJS lên là Integer/Double)
+            BigDecimal importQty = new BigDecimal(String.valueOf(d.getQuantity()));
 
-        	product.setQuantity(currentQty.add(importQty));
+            // =========================================================
+            //  ĐỒNG BỘ SANG BẢNG SẢN PHẨM
+            // =========================================================
+            
+            // a. Cộng dồn số lượng tồn kho (Tồn cũ + Nhập mới)
+            product.setQuantity(currentQty.add(importQty));
 
-        	product.setImportPrice(d.getUnitPrice());
+            // b. Cập nhật Giá nhập (Vốn) mới nhất
+            product.setImportPrice(d.getUnitPrice());
 
-        	productRepo.save(product);
+            // c. Cập nhật Ngày nhập kho (Sử dụng cột createDate như đã chốt)
+            product.setCreateDate(new Date()); 
 
-            // 🔥 TẠO DETAIL
+            // Lưu sản phẩm đã được cập nhật vào Database
+            productRepo.save(product);
+
+            // =========================================================
+            // 2. TẠO CHI TIẾT PHIẾU NHẬP
+            // =========================================================
             ImportDetail detail = new ImportDetail();
             detail.setProductId(d.getProductId());
-            detail.setQuantity(d.getQuantity());
+            detail.setQuantity(importQty); // Gán bằng BigDecimal chuẩn xác
             detail.setUnitPrice(d.getUnitPrice());
             detail.setImportEntity(imp);
 

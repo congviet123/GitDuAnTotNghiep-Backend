@@ -79,7 +79,8 @@ public class ClientRestController {
     // ============================================================
     // 1. TÀI KHOẢN (PROFILE & AUTH)
     // ============================================================
-// API Lấy thông tin profile đầy đủ (Dành cho trang Account)
+    
+    // API Lấy thông tin profile đầy đủ (Dành cho trang Account)
     @GetMapping("/account/profile")
     public ResponseEntity<?> getProfile() {
         try {
@@ -92,7 +93,8 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-// API Cập nhật thông tin profile (Không bao gồm mật khẩu)
+    
+    // API Cập nhật thông tin profile (Không bao gồm mật khẩu)
     @PutMapping("/account/profile")
     public ResponseEntity<?> updateProfile(@RequestBody UserUpdateDTO userDto) {
         try {
@@ -105,7 +107,8 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage()); 
         }
     }
-// API Lấy thông tin profile ngắn gọn (Dành cho Header hoặc trang Profile)
+    
+    // API Lấy thông tin profile ngắn gọn (Dành cho Header hoặc trang Profile)
     @GetMapping("/client/profile")
     public ResponseEntity<?> getClientProfileShort() {
         try {
@@ -137,7 +140,8 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-// API Đăng ký tài khoản mới
+    
+    // API Đăng ký tài khoản mới
     @PostMapping("/account/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
         try {
@@ -148,7 +152,8 @@ public class ClientRestController {
             return ResponseEntity.status(HttpStatus.CREATED).body("Đăng ký thành công!");
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
-// API Đổi mật khẩu
+    
+    // API Đổi mật khẩu
     @PutMapping("/account/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO passDto) {
         try {
@@ -159,17 +164,25 @@ public class ClientRestController {
             return ResponseEntity.ok("Đổi mật khẩu thành công!");
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
-// API Quên mật khẩu
+
+    
+    
+    //LUỒNG 3 BƯỚC QUÊN MẬT KHẨU BẰNG OTP
+    
+    // Bước 1: Yêu cầu tạo mã OTP và gửi về Email
     @PostMapping("/auth/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
         try {
-            userService.forgotPassword(email);
-            return ResponseEntity.ok("Mật khẩu mới đã được gửi về email.");
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+            // [ĐÃ SỬA] Gọi hàm mới generateAndSendOtp thay vì forgotPassword cũ
+            userService.generateAndSendOtp(email);
+            return ResponseEntity.ok("Mã OTP 6 số đã được gửi về email của bạn. Vui lòng kiểm tra hộp thư.");
+        } catch (Exception e) { 
+            return ResponseEntity.badRequest().body(e.getMessage()); 
+        }
     }
 
     
- // API Thiết lập mật khẩu mới (Dành cho tài khoản Google)
+    // API Thiết lập mật khẩu mới (Dành cho tài khoản Google)
     @PostMapping("/account/setup-password")
     public ResponseEntity<?> setupNewPassword(@RequestBody Map<String, String> payload) {
         try {

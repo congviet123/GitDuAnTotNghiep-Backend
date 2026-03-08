@@ -129,7 +129,7 @@ public class AuthController {
     // LẤY LẠI MẬT KHẨU BẰNG OTP (3 BƯỚC)
     // =========================================================
 
-    // Bước 1: Gửi mã OTP về Email
+    // Bước 1: Gửi mã OTP về Email (API: POST /rest/auth/send-otp)
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody Map<String, String> payload) {
         try {
@@ -138,15 +138,15 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("Vui lòng nhập email.");
             }
             
-            // Sẽ code hàm này trong UserServiceImpl
             userService.generateAndSendOtp(email);
-            return ResponseEntity.ok("Mã OTP đã được gửi đến email của bạn.");
+            // Trả về JSON hợp lệ để VueJS dễ đọc
+            return ResponseEntity.ok(Map.of("message", "Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // Bước 2: Xác thực mã OTP
+    // Bước 2: Xác thực mã OTP (API: POST /rest/auth/verify-otp)
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> payload) {
         try {
@@ -157,15 +157,14 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("Thiếu thông tin xác thực.");
             }
 
-            // Sẽ code hàm này trong UserServiceImpl
             userService.verifyOtp(email, otp);
-            return ResponseEntity.ok("Xác thực OTP thành công.");
+            return ResponseEntity.ok(Map.of("message", "Xác thực OTP thành công."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // Bước 3: Đặt lại mật khẩu mới
+    // Bước 3: Đặt lại mật khẩu mới (API: POST /rest/auth/reset-password-otp)
     @PostMapping("/reset-password-otp")
     public ResponseEntity<?> resetPasswordWithOtp(@RequestBody Map<String, String> payload) {
         try {
@@ -181,9 +180,8 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("Mật khẩu xác nhận không khớp.");
             }
 
-            // Sẽ code hàm này trong UserServiceImpl
             userService.resetPasswordWithOtp(email, newPassword);
-            return ResponseEntity.ok("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
+            return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công. Vui lòng đăng nhập lại."));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -198,7 +196,7 @@ public class AuthController {
         return ResponseEntity.ok("Đăng xuất thành công");
     }
 
-    // --- RESET MẬT KHẨU NHANH ---
+    // --- RESET MẬT KHẨU NHANH (Chỉ nên dùng cho test/admin) ---
     @GetMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestParam String username) {
         User user = userService.findById(username);

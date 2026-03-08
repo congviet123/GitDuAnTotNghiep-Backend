@@ -14,10 +14,10 @@ import poly.edu.repository.UserRepository;
 import poly.edu.service.MailService;
 import poly.edu.service.UserService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -31,8 +31,9 @@ public class UserServiceImpl implements UserService {
     
     private static final String DEFAULT_USER_ROLE_NAME = "ROLE_USER"; 
     
-    // --- BỘ NHỚ TẠM CHO OTP ---
-    // Key: Email | Value: Chuỗi chứa OTP và số lần đã nhập sai, ngăn cách bằng dấu gạch (VD: "123456_0")
+    // Bộ nhớ tạm lưu trữ OTP trên RAM của Server.
+    // Cấu trúc: Key là Email (String) -> Value là chuỗi "MãOTP_SốLầnSai" (Ví dụ: "123456_0")
+    // Dùng ConcurrentHashMap để an toàn khi có nhiều người dùng cùng lúc (Thread-safe)
     private static final ConcurrentHashMap<String, String> otpCache = new ConcurrentHashMap<>();
 
     @Override
@@ -41,40 +42,22 @@ public class UserServiceImpl implements UserService {
     }
 
     // =========================================================
-    // 1. LOGIC QUÊN MẬT KHẨU (CŨ - BẠN CÓ THỂ XÓA NẾU KHÔNG DÙNG NỮA)
-    // =========================================================
-    @Override
-    @Transactional
-    public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống."));
-        
-        String newRawPassword = UUID.randomUUID().toString().substring(0, 6);
-        user.setPassword(passwordEncoder.encode(newRawPassword));
-        userRepository.save(user);
-
-        String subject = "Cấp lại mật khẩu mới - Trái Cây Bay";
-        String body = "..."; // (Giữ nguyên chuỗi HTML cũ của bạn)
-        mailService.sendEmail(email, subject, body);
-    }
-
-    // =========================================================
-    // LẤY LẠI MẬT KHẨU BẰNG OTP (3 BƯỚC)
+    // 1. NHÓM CHỨC NĂNG QUÊN MẬT KHẨU (BẰNG MÃ OTP 6 SỐ)
     // =========================================================
 
-    // Bước 1: Tạo OTP và Gửi Mail
+    // Bước 1 - Sinh mã OTP ngẫu nhiên và gửi về Email khách hàng
     @Override
     public void generateAndSendOtp(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Email này chưa được đăng ký trong hệ thống."));
 
-        // 1. Tạo mã OTP 6 số
+        // Tạo mã OTP 6 số (từ 000000 đến 999999)
         String otp = String.format("%06d", new Random().nextInt(999999));
         
-        // 2. Lưu vào cache kèm số lần nhập sai ban đầu là 0 (Định dạng: "MãOTP_SốLầnSai")
+        // Lưu vào cache, mặc định số lần nhập sai ban đầu là 0
         otpCache.put(email, otp + "_0");
 
-        // 3. Gửi Email (Giao diện HTML siêu đẹp)
+        // Giao diện HTML của Email chứa mã OTP
         String subject = "Mã xác thực lấy lại mật khẩu - Trái Cây Bay";
         String body = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #fdfdfd;'>"
                 + "<h2 style='color: #007bff; text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px;'>Mã xác thực OTP</h2>"
@@ -93,7 +76,7 @@ public class UserServiceImpl implements UserService {
         mailService.sendEmail(email, subject, body);
     }
 
-    // Bước 2: Kiểm tra OTP và đếm số lần sai
+    // Bước 2 - Xác thực mã OTP mà người dùng nhập vào
     @Override
     public void verifyOtp(String email, String userInputOtp) {
         String cacheData = otpCache.get(email);
@@ -102,34 +85,34 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Mã OTP đã hết hạn hoặc bạn chưa yêu cầu gửi mã.");
         }
 
-        // Tách lấy mã OTP gốc và số lần sai hiện tại
+        // Tách chuỗi để lấy OTP gốc và số lần đã nhập sai
         String[] parts = cacheData.split("_");
         String correctOtp = parts[0];
         int wrongAttempts = Integer.parseInt(parts[1]);
 
         if (correctOtp.equals(userInputOtp)) {
-            // Nhập đúng -> Cập nhật lại trạng thái thành "verified" để cho phép đổi pass ở bước sau
+            // [GHI CHÚ]: Nếu đúng OTP -> Gắn cờ "verified" để cho phép bước đổi mật khẩu
             otpCache.put(email, "verified_0");
         } else {
-            // Nhập sai -> Tăng biến đếm
+            // [GHI CHÚ]: Nếu sai OTP -> Tăng số lần sai lên 1. Quá 3 lần sẽ hủy OTP.
             wrongAttempts++;
             if (wrongAttempts >= 3) {
-                otpCache.remove(email); // Xóa luôn OTP
+                otpCache.remove(email); 
                 throw new RuntimeException("Bạn đã nhập sai quá 3 lần. Mã OTP đã bị hủy, vui lòng yêu cầu gửi lại mã mới.");
             } else {
-                otpCache.put(email, correctOtp + "_" + wrongAttempts); // Lưu lại số lần sai mới
+                otpCache.put(email, correctOtp + "_" + wrongAttempts); 
                 throw new RuntimeException("Mã OTP không chính xác. Bạn còn " + (3 - wrongAttempts) + " lần thử.");
             }
         }
     }
 
-    // Bước 3: Đổi mật khẩu mới
+    // Bước 3 - Cập nhật mật khẩu mới vào Database sau khi OTP đã hợp lệ
     @Override
     @Transactional
     public void resetPasswordWithOtp(String email, String newPassword) {
         String cacheData = otpCache.get(email);
         
-        // Chỉ cho phép đổi mật khẩu nếu trạng thái trong cache là "verified"
+        // Kiểm tra xem email này đã vượt qua bước "verifyOtp" chưa (phải có chữ "verified")
         if (cacheData == null || !cacheData.startsWith("verified")) {
             throw new RuntimeException("Bạn chưa xác thực mã OTP hoặc phiên làm việc đã hết hạn.");
         }
@@ -140,18 +123,38 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // Đổi pass thành công thì dọn dẹp bộ nhớ đệm
+        // [GHI CHÚ]: Đổi pass thành công thì phải xóa rác trong bộ nhớ đệm
         otpCache.remove(email);
     }
 
 
     // =========================================================
-    // 2. LOGIC ADMIN & CRUD (Giữ nguyên)
+    // 2. NHÓM CHỨC NĂNG DÀNH CHO ADMIN (QUẢN LÝ TÀI KHOẢN)
     // =========================================================
+    
+    // Lấy danh sách User kèm theo Sổ địa chỉ để hiển thị lên bảng quản trị (VueJS)
     @Override
     @Transactional(readOnly = true)
     public List<UserListDTO> findAllForAdminList() {
-        return userRepository.findAllUserListDTO();
+        List<User> users = userRepository.findAll();
+        List<UserListDTO> dtoList = new ArrayList<>();
+        
+        for (User u : users) {
+            UserListDTO dto = new UserListDTO();
+            dto.setUsername(u.getUsername());
+            dto.setFullname(u.getFullname());
+            dto.setEmail(u.getEmail());
+            dto.setPhone(u.getPhone());
+            dto.setRoleName(u.getRole() != null ? u.getRole().getName() : "");
+            dto.setEnabled(u.getEnabled());
+            
+            // Ép mảng địa chỉ vào DTO để VueJS có dữ liệu hiển thị (Cột "Địa chỉ mặc định")
+            dto.setAddresses(u.getAddresses());
+            
+            dtoList.add(dto);
+        }
+        
+        return dtoList;
     }
     
     @Override
@@ -170,6 +173,7 @@ public class UserServiceImpl implements UserService {
         return userRepository.findByEmail(email);
     }
 
+    // Hàm tạo User mới từ giao diện Admin
     @Override
     @Transactional
     public User create(User user) {
@@ -197,6 +201,7 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("Email đã được sử dụng.");
         }
         
+        // Mã hóa mật khẩu trước khi lưu xuống DB
         if (user.getPassword() != null && !user.getPassword().startsWith("$2a$")) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
@@ -204,6 +209,7 @@ public class UserServiceImpl implements UserService {
         return userRepository.save(user);
     }
 
+    // Hàm cập nhật User từ giao diện Admin (Kèm chức năng tự động gửi Mail báo khóa/mở khóa)
     @Override
     @Transactional
     public User update(User user) {
@@ -212,8 +218,10 @@ public class UserServiceImpl implements UserService {
              throw new RuntimeException("Không tìm thấy user: " + user.getUsername());
         }
         
+        // Lưu lại trạng thái cũ để biết Admin vừa "Khóa" hay "Mở khóa"
         boolean oldStatus = existingUser.getEnabled();
 
+        // Cập nhật Quyền (Role)
         if (user.getRole() != null && user.getRole().getId() != null) {
             if (!user.getRole().getId().equals(existingUser.getRole().getId())) {
                 Role newRole = roleRepository.findById(user.getRole().getId())
@@ -222,22 +230,27 @@ public class UserServiceImpl implements UserService {
             }
         }
         
+        // Cập nhật thông tin cá nhân
         existingUser.setFullname(user.getFullname());
         existingUser.setEmail(user.getEmail());
         existingUser.setPhone(user.getPhone());
         
+        // Cập nhật Trạng thái hoạt động (Khóa / Mở)
         if (user.getEnabled() != null) {
             existingUser.setEnabled(user.getEnabled());
         }
 
+        // Cập nhật Mật khẩu (nếu Admin có nhập pass mới)
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         
         User savedUser = userRepository.save(existingUser);
 
+        // Logic gửi Email khi tài khoản bị thay đổi trạng thái
         try {
             if (oldStatus && !savedUser.getEnabled()) {
+                // Đang hoạt động -> Bị khóa
                 String subject = "Thông báo KHÓA tài khoản - Trái Cây Bay";
                 String body = "<div style='font-family: Arial; padding: 20px; border: 1px solid #f5c6cb; background-color: #f8d7da; border-radius: 5px;'>"
                         + "<h2 style='color: #721c24;'>Tài khoản của bạn đã bị tạm khóa</h2>"
@@ -249,6 +262,7 @@ public class UserServiceImpl implements UserService {
                 mailService.sendEmail(savedUser.getEmail(), subject, body);
             }
             else if (!oldStatus && savedUser.getEnabled()) {
+                // Đang bị khóa -> Được mở lại
                 String subject = "Thông báo MỞ LẠI tài khoản - Trái Cây Bay";
                 String body = "<div style='font-family: Arial; padding: 20px; border: 1px solid #c3e6cb; background-color: #d4edda; border-radius: 5px;'>"
                         + "<h2 style='color: #155724;'>Tài khoản của bạn đã được mở lại</h2>"
@@ -270,6 +284,7 @@ public class UserServiceImpl implements UserService {
         return savedUser;
     }
 
+    // Hàm xóa người dùng (Chặn xóa nếu người dùng đã có lịch sử Đơn hàng)
     @Override
     @Transactional
     public void delete(String username) {
@@ -280,8 +295,8 @@ public class UserServiceImpl implements UserService {
         }
 
         try {
-            cartRepository.deleteAllByUser_Username(username);
-            userRepository.deleteById(username);
+            cartRepository.deleteAllByUser_Username(username); // Xóa giỏ hàng trước
+            userRepository.deleteById(username); // Sau đó mới xóa User
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new RuntimeException("Tài khoản dính líu dữ liệu khác (Review, Comment...). Không thể xóa, hãy KHÓA tài khoản.");
         } catch (Exception e) {
@@ -289,9 +304,12 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+
     // =========================================================
-    // 3. LOGIC ĐĂNG KÝ & CẬP NHẬT PROFILE (Giữ nguyên)
+    // 3. NHÓM CHỨC NĂNG DÀNH CHO KHÁCH HÀNG (CLIENT)
     // =========================================================
+    
+    // Đăng ký tài khoản mới trên Website
     @Override
     @Transactional
     public User register(UserRegistrationDTO registrationDTO) {
@@ -313,17 +331,20 @@ public class UserServiceImpl implements UserService {
         return userRepository.save(newUser);
     }
 
+    // Cập nhật hồ sơ (Profile) của khách hàng
     @Override
     @Transactional
     public User updateProfile(String username, UserUpdateDTO updateDTO) {
         User existingUser = findById(username);
         if (existingUser == null) throw new RuntimeException("User not found");
         
+        // Kiểm tra xem email mới muốn đổi có bị trùng với người khác không
         if (!existingUser.getEmail().equals(updateDTO.getEmail())) {
              if (userRepository.findByEmail(updateDTO.getEmail()).isPresent()) {
                 throw new RuntimeException("Email đã được sử dụng bởi tài khoản khác.");
             }
         }
+        
         existingUser.setFullname(updateDTO.getFullname());
         existingUser.setEmail(updateDTO.getEmail());
         existingUser.setPhone(updateDTO.getPhone());
@@ -331,6 +352,7 @@ public class UserServiceImpl implements UserService {
         return userRepository.save(existingUser);
     }
 
+    // Đổi mật khẩu an toàn (Yêu cầu nhập mật khẩu cũ)
     @Override
     @Transactional
     public void changePassword(String username, ChangePasswordDTO passDto) {
@@ -351,6 +373,7 @@ public class UserServiceImpl implements UserService {
         userRepository.save(existingUser);
     }
     
+    // Thiết lập mật khẩu cho tài khoản đăng nhập bằng Google lần đầu
     @Override
     @Transactional
     public void setupNewPassword(String username, String newPassword) {
