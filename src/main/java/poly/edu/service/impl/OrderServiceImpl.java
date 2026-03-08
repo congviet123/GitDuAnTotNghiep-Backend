@@ -148,12 +148,7 @@ public class OrderServiceImpl implements OrderService {
             detail.setProduct(product);
             details.add(detail);
             
-<<<<<<< HEAD
-            // Tìm CartID để xóa
-            Optional<Cart> cartItem = cartRepository.findByAccountUsernameAndProductId(username, item.getProductId());
-=======
             Optional<Cart> cartItem = cartRepository.findByUser_UsernameAndProduct_Id(username, item.getProductId());
->>>>>>> 590b36084399651b3a23ae0fa10bd74eb89ddac2
             cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 

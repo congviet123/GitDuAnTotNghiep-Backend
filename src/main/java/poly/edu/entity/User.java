@@ -1,6 +1,7 @@
 package poly.edu.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -46,10 +47,11 @@ public class User implements Serializable {
     private Role role;
 
     // --- MAPPING ADDRESS (1 - N) ---
-    // Một User có nhiều địa chỉ. "user" là tên biến trong class Address
-    @JsonIgnore 
+    // thêm @JsonIgnoreProperties để truyền dữ liệu cho VueJS mà không bị lỗi vòng lặp
+    @JsonIgnoreProperties("user") 
     @ToString.Exclude
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    //Dùng EAGER để tự động load danh sách địa chỉ khi gọi API lấy User
+    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     private List<Address> addresses;
 
     // --- MAPPING ORDERS (1 - N) ---
