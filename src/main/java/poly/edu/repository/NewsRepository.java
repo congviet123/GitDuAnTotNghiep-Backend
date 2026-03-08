@@ -12,8 +12,12 @@ import poly.edu.entity.News;
 @Repository
 public interface NewsRepository extends JpaRepository<News, Long> {
 
-    @Query(value = """
-                SELECT * FROM news WHERE title COLLATE Vietnamese_CI_AI LIKE %:title%
-            """, nativeQuery = true)
-    Page<News> searchdByTitle(@Param(value = "title") String title, Pageable pageable);
+    Page<News> findByTitleContainingIgnoreCaseOrUser_FullnameContainingIgnoreCase(String title, String fullName, Pageable pageable);
+
+    @Query("""
+    SELECT n
+    FROM News n
+    JOIN n.likes l
+    WHERE l.user.username = :username""")
+    Page<News> findLikedNewsByUsername(String username, Pageable pageable);
 }

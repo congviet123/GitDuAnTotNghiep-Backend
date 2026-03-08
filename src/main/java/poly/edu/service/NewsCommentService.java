@@ -2,6 +2,7 @@ package poly.edu.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import poly.edu.entity.dto.NewsCommentCreateDTO;
@@ -14,7 +15,9 @@ public interface NewsCommentService {
 
     NewsCommentVisibilityResponse toggleVisiable(Long commentId);
 
-    List<NewsCommentResponseDTO> getRootComments(Long newsId, int offset, int limit);
+    Page<NewsCommentResponseDTO> getCommentsByNewsId(Long newsId, int page, int size);
 
-    List<NewsCommentResponseDTO> getReplies(Long parentId, int offset, int limit);
+    Page<NewsCommentResponseDTO> getRootComments(Long newsId, int page, int size);
+
+    Page<NewsCommentResponseDTO> getReplies(Long parentId, int page, int size);
 }

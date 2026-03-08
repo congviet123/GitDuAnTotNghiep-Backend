@@ -16,4 +16,6 @@ public interface ImportService {
     List<Import> search(String keyword, LocalDate start, LocalDate end);
 
     Import findById(Integer id);
+
+	void delete(Integer id);
 }
