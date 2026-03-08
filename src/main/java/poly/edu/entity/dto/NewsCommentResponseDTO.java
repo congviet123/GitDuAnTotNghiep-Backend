@@ -24,10 +24,4 @@ public class NewsCommentResponseDTO implements Serializable {
     boolean isVisiable;
 
     LocalDateTime createdDate;
-
-    int replyCount;
-
-    boolean hasMoreReplies;
-
-    List<NewsCommentResponseDTO> replies;
 }

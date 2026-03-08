@@ -26,4 +26,10 @@ public class NewsResponseDTO implements Serializable {
     private Integer likeCount;
 
     private Integer viewCount;
+
+    private Integer shareCount;
+
+    private String productLink;
+
+    private boolean likedByCurrentUser;
 }

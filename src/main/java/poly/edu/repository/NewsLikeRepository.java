@@ -19,4 +19,6 @@ public interface NewsLikeRepository extends JpaRepository<NewsLike, Long> {
     @Modifying
     @Query(value = "DELETE FROM News_Like WHERE username = :username AND news_id = :newsId", nativeQuery = true)
     void deleteByUsernameAndNewsId(@Param("username") String username, @Param("newsId") Long newsId);
+
+    boolean existsByNews_IdAndUser_Username(Long newsId, String username);
 }
