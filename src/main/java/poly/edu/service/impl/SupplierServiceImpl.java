@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import poly.edu.entity.Supplier;
 import poly.edu.repository.SupplierRepository;
 import poly.edu.service.SupplierService;
+import poly.edu.repository.*;
 
 @Service
 public class SupplierServiceImpl implements SupplierService {
@@ -33,7 +34,16 @@ public class SupplierServiceImpl implements SupplierService {
     
     @Override
     public List<Supplier> search(String keyword) {
-        return supplierRepository.findByNameContainingIgnoreCase(keyword);
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return supplierRepository.findAll();
+        }
+
+        return supplierRepository
+                .findByNameContainingIgnoreCaseOrContactNameContainingIgnoreCase(
+                        keyword,
+                        keyword
+                );
     }
 
 }

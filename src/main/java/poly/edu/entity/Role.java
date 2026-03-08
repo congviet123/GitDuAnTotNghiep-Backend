@@ -25,7 +25,7 @@ public class Role implements Serializable {
     @Column(name = "Name", unique = true, nullable = false)
     private String name;
 
-    // [QUAN TRỌNG] Ngắt vòng lặp vô tận (StackOverflow) khi login
+    // Ngắt vòng lặp vô tận (StackOverflow) khi login
     @JsonIgnore 
     @ToString.Exclude 
     @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)

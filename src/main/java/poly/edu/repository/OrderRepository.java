@@ -1,16 +1,16 @@
 package poly.edu.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import poly.edu.entity.Order;
-import java.util.List;
-import java.util.Optional;
-import java.time.LocalDateTime;
-
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
+import poly.edu.entity.Order;
+
+import java.time.LocalDateTime;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Integer> {
     
@@ -63,6 +63,10 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
             @Param("start") LocalDateTime start, 
             @Param("end") LocalDateTime end);
 
+    // --- TÌM CÁC ĐƠN HÀNG ĐÃ GIAO THÀNH CÔNG QUÁ 24H ---
+    @Query("SELECT o FROM Order o WHERE o.status = 'DELIVERED' AND o.deliveryDate <= :cutoffTime")
+    List<Order> findDeliveredOrdersOlderThan(@Param("cutoffTime") Date cutoffTime);
+
     // =========================================================================
     // 3. PHƯƠNG THỨC BÁO CÁO & THỐNG KÊ
     // =========================================================================
@@ -78,7 +82,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     List<Object[]> getMonthlyRevenue(@Param("year") Integer year);
     
     
-    // kinh năng đánh dấu đã in
+    // Tính năng đánh dấu đã in
     @Modifying
     @Transactional
     @Query("UPDATE Order o SET o.isPrinted = true WHERE o.id = :id")

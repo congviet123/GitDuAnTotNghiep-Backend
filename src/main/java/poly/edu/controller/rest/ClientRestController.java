@@ -79,7 +79,7 @@ public class ClientRestController {
     // ============================================================
     // 1. TÀI KHOẢN (PROFILE & AUTH)
     // ============================================================
-
+// API Lấy thông tin profile đầy đủ (Dành cho trang Account)
     @GetMapping("/account/profile")
     public ResponseEntity<?> getProfile() {
         try {
@@ -92,7 +92,7 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
+// API Cập nhật thông tin profile (Không bao gồm mật khẩu)
     @PutMapping("/account/profile")
     public ResponseEntity<?> updateProfile(@RequestBody UserUpdateDTO userDto) {
         try {
@@ -105,7 +105,7 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage()); 
         }
     }
-
+// API Lấy thông tin profile ngắn gọn (Dành cho Header hoặc trang Profile)
     @GetMapping("/client/profile")
     public ResponseEntity<?> getClientProfileShort() {
         try {
@@ -137,7 +137,7 @@ public class ClientRestController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
+// API Đăng ký tài khoản mới
     @PostMapping("/account/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
         try {
@@ -148,7 +148,7 @@ public class ClientRestController {
             return ResponseEntity.status(HttpStatus.CREATED).body("Đăng ký thành công!");
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
-
+// API Đổi mật khẩu
     @PutMapping("/account/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDTO passDto) {
         try {
@@ -159,7 +159,7 @@ public class ClientRestController {
             return ResponseEntity.ok("Đổi mật khẩu thành công!");
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
-
+// API Quên mật khẩu
     @PostMapping("/auth/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
         try {
@@ -168,6 +168,26 @@ public class ClientRestController {
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
+    
+ // API Thiết lập mật khẩu mới (Dành cho tài khoản Google)
+    @PostMapping("/account/setup-password")
+    public ResponseEntity<?> setupNewPassword(@RequestBody Map<String, String> payload) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Vui lòng đăng nhập.");
+            
+            String newPassword = payload.get("newPassword");
+            if (newPassword == null || newPassword.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Mật khẩu không được để trống.");
+            }
+            
+            // Gọi hàm setupNewPassword ở UserService
+            userService.setupNewPassword(username, newPassword);
+            return ResponseEntity.ok("Đã thiết lập mật khẩu mới thành công.");
+        } catch (Exception e) { 
+            return ResponseEntity.badRequest().body(e.getMessage()); 
+        }
+    }
 
     // ============================================================
     // 2. SẢN PHẨM & DANH MỤC
@@ -350,6 +370,7 @@ public class ClientRestController {
         }
     }
 
+    // --- HỦY ĐƠN HÀNG THÔNG THƯỜNG (COD) ---
     @PutMapping("/orders/{id}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Integer id, @RequestBody Map<String, String> body) {
         try {
@@ -359,6 +380,29 @@ public class ClientRestController {
             orderService.cancelOrder(username, id, body.get("reason"));
             return ResponseEntity.ok("Đã hủy đơn hàng thành công.");
         } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- HỦY ĐƠN HÀNG ĐÃ THANH TOÁN (CẦN NHẬP TÀI KHOẢN NGÂN HÀNG) ---
+    @PostMapping(value = "/orders/{id}/cancel-paid", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> cancelPaidOrder(
+            @PathVariable("id") Integer id,
+            @RequestParam("reason") String reason,
+            @RequestParam("bankName") String bankName,
+            @RequestParam("accNo") String accNo,
+            @RequestParam("accName") String accName,
+            @RequestParam(value = "qrFile", required = false) MultipartFile qrFile) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+            // Gọi hàm mới trong OrderService (chúng ta sẽ code ở bước tiếp theo)
+            orderService.cancelPaidOrder(username, id, reason, bankName, accNo, accName, qrFile);
+            
+            return ResponseEntity.ok("Yêu cầu hủy đơn đã gửi. Tiền sẽ được hoàn về STK của bạn sớm nhất.");
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }

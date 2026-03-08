@@ -3,12 +3,14 @@ package poly.edu.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import poly.edu.entity.Import;
 import poly.edu.entity.ImportDetail;
 import poly.edu.entity.Product;
 import poly.edu.entity.dto.ImportDTO;
 import poly.edu.repository.ImportRepository;
 import poly.edu.repository.ProductRepository;
+import poly.edu.repository.UserRepository;
 import poly.edu.service.ImportService;
 
 import java.time.LocalDate;
@@ -25,13 +27,22 @@ public class ImportServiceImpl implements ImportService {
     ImportRepository importRepo;
 
     @Autowired
-    ProductRepository productRepo;   // 🔥 THÊM CÁI NÀY
+    ProductRepository productRepo;
+
+    @Autowired
+    UserRepository userRepo;
 
     @Override
     public Import create(ImportDTO dto) {
 
         Import imp = new Import();
-        imp.setImportDate(LocalDateTime.now());
+
+        // lấy ngày nhập
+        LocalDate importDate = dto.getImportDate() != null
+                ? dto.getImportDate()
+                : LocalDate.now();
+
+        imp.setImportDate(importDate.atStartOfDay());
         imp.setSupplierId(dto.getSupplierId());
         imp.setAccountUsername(dto.getAccountUsername());
         imp.setTotalAmount(dto.getTotalAmount());
@@ -39,23 +50,30 @@ public class ImportServiceImpl implements ImportService {
 
         List<ImportDetail> details = dto.getDetails().stream().map(d -> {
 
-            // 🔥 LẤY PRODUCT
-        	Product product = productRepo.findById(d.getProductId())
-        	        .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+            Product product = productRepo.findById(d.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
 
-        	BigDecimal currentQty = product.getQuantity() == null
-        	        ? BigDecimal.ZERO
-        	        : product.getQuantity();
+            BigDecimal currentQty = product.getQuantity() == null
+                    ? BigDecimal.ZERO
+                    : product.getQuantity();
 
-        	BigDecimal importQty = BigDecimal.valueOf(d.getQuantity());
+            BigDecimal importQty = BigDecimal.valueOf(d.getQuantity());
 
-        	product.setQuantity(currentQty.add(importQty));
+            // cộng tồn kho
+            product.setQuantity(currentQty.add(importQty));
 
-        	product.setImportPrice(d.getUnitPrice());
+            // cập nhật giá nhập
+            product.setImportPrice(d.getUnitPrice());
 
-        	productRepo.save(product);
+            // cập nhật ngày nhập kho mới nhất
+            if (product.getLastImportDate() == null ||
+                    importDate.isAfter(product.getLastImportDate())) {
 
-            // 🔥 TẠO DETAIL
+                product.setLastImportDate(importDate);
+            }
+
+            productRepo.save(product);
+
             ImportDetail detail = new ImportDetail();
             detail.setProductId(d.getProductId());
             detail.setQuantity(d.getQuantity());
@@ -73,15 +91,51 @@ public class ImportServiceImpl implements ImportService {
 
     @Override
     public List<Import> search(String keyword, LocalDate start, LocalDate end) {
+
+        if (keyword != null) {
+            keyword = keyword.trim();
+            if (keyword.isEmpty()) {
+                keyword = null;
+            }
+        }
+
         return importRepo.search(
-            keyword,
-            start != null ? start.atStartOfDay() : null,
-            end != null ? end.atTime(23, 59, 59) : null
+                keyword,
+                start != null ? start.atStartOfDay() : null,
+                end != null ? end.atTime(23, 59, 59) : null
         );
     }
 
     @Override
     public Import findById(Integer id) {
         return importRepo.findById(id).orElseThrow();
+    }
+
+    @Override
+    public void delete(Integer id) {
+
+        Import imp = importRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu nhập"));
+
+        // hoàn lại tồn kho
+        for (ImportDetail detail : imp.getDetails()) {
+
+            Product product = productRepo.findById(detail.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm"));
+
+            BigDecimal currentQty = product.getQuantity() == null
+                    ? BigDecimal.ZERO
+                    : product.getQuantity();
+
+            BigDecimal importQty = BigDecimal.valueOf(detail.getQuantity());
+
+            product.setQuantity(currentQty.subtract(importQty));
+
+            productRepo.save(product);
+        }
+
+        imp.getDetails().clear();
+
+        importRepo.delete(imp);
     }
 }

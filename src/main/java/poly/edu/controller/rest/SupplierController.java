@@ -44,8 +44,9 @@ public class SupplierController {
         return supplierService.save(supplier);
     }
     
-    @GetMapping("/search")	
-    public List<Supplier> search(@RequestParam String keyword) {
+   
+    @GetMapping("/search")
+    public List<Supplier> search(@RequestParam(required = false) String keyword) {
         return supplierService.search(keyword);
     }
 

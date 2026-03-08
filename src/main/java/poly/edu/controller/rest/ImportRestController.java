@@ -43,4 +43,8 @@ public class ImportRestController {
     public Import detail(@PathVariable Integer id) {
         return importService.findById(id);
     }
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Integer id) {
+        importService.delete(id);
+    }
 }
