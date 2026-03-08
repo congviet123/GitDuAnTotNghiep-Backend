@@ -1,4 +1,3 @@
-
 //API REST cho chức năng quản trị hệ thống
 package poly.edu.controller.rest;
 
@@ -145,16 +144,14 @@ public class AdminRestController {
     }
 
     // ======================================================================
-    // 3. QUẢN LÝ NGƯỜI DÙNG (ĐÃ NÂNG CẤP)
+    // 3. QUẢN LÝ NGƯỜI DÙNG (GIỮ NGUYÊN)
     // ======================================================================
     
-    // API Lấy danh sách User (DTO mới có SĐT, Địa chỉ)
     @GetMapping("/users")
     public List<UserListDTO> getAllUsers() { 
         return userService.findAllForAdminList(); 
     }
 
-    // API Lấy chi tiết User
     @GetMapping("/users/{username}")
     public ResponseEntity<?> getUserByUsername(@PathVariable("username") String username) {
         try {
@@ -164,13 +161,11 @@ public class AdminRestController {
         } catch (UsernameNotFoundException e) { return ResponseEntity.notFound().build(); }
     }
     
-    // [MỚI] API Lấy danh sách Role để hiển thị Dropdown
     @GetMapping("/roles")
     public ResponseEntity<List<Role>> getAllRoles() {
         return ResponseEntity.ok(roleRepository.findAll());
     }
 
-    // [MỚI] API Tạo User mới (Admin tạo Staff/Shipper)
     @PostMapping("/users")
     public ResponseEntity<?> createUser(@RequestBody User user) {
         try {
@@ -181,7 +176,6 @@ public class AdminRestController {
         }
     }
 
-    // [MỚI] API Cập nhật User (Bao gồm Role và trạng thái Khóa/Mở)
     @PutMapping("/users/{username}")
     public ResponseEntity<?> updateUser(@PathVariable("username") String username, @RequestBody User user) {
         if (!username.equals(user.getUsername())) {
@@ -206,7 +200,7 @@ public class AdminRestController {
     }
 
     // ======================================================================
-    // 4. QUẢN LÝ ĐƠN HÀNG (GIỮ NGUYÊN)
+    // 4. QUẢN LÝ ĐƠN HÀNG
     // ======================================================================
     @GetMapping("/orders")
     public ResponseEntity<List<Order>> getAllOrdersForAdmin(
@@ -240,6 +234,17 @@ public class AdminRestController {
             }
             return ResponseEntity.ok(updatedOrder); 
         } catch (RuntimeException e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+    }
+
+    // --- API CỘNG LẠI TỒN KHO THỦ CÔNG CHO ĐƠN HOÀN TRẢ ---
+    @PutMapping("/orders/{id}/restock")
+    public ResponseEntity<?> restockReturnedOrder(@PathVariable("id") Integer id) {
+        try {
+            orderService.restockReturnedOrder(id);
+            return ResponseEntity.ok("Đã cộng số lượng sản phẩm vào kho thành công!");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @DeleteMapping("/orders/{id}")
@@ -295,7 +300,9 @@ public class AdminRestController {
     }
     
 
-    // 5. BÁO CÁO THỐNG KÊ
+    // ======================================================================
+    // 5. BÁO CÁO THỐNG KÊ (GIỮ NGUYÊN)
+    // ======================================================================
     @GetMapping("/reports/revenue/{year}")
     public ResponseEntity<?> getRevenueReport(@PathVariable("year") Integer year) {
         try { return ResponseEntity.ok(orderService.getMonthlyRevenue(year)); }

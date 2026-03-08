@@ -15,8 +15,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.OAuth2AuthenticationException; // [MỚI]
-import org.springframework.security.oauth2.core.OAuth2Error; // [MỚI]
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException; 
+import org.springframework.security.oauth2.core.OAuth2Error; 
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -54,15 +54,20 @@ public class SecurityConfig {
     public AuthenticationFailureHandler authenticationFailureHandler() {
         return (request, response, exception) -> {
             String errCode = "error";
+            String tempToken = ""; // Biến chứa token
             
             // 1. Kiểm tra xem lỗi có phải từ OAuth2 không
             if (exception instanceof OAuth2AuthenticationException) {
                 OAuth2Error error = ((OAuth2AuthenticationException) exception).getError();
-                // Lấy mã lỗi chính xác (account_disabled hoặc unregistered)
+                // Lấy mã lỗi chính xác (account_disabled hoặc unregistered|tempToken)
                 String code = error.getErrorCode();
                 
                 if ("account_disabled".equals(code)) {
                     errCode = "disabled";
+                } else if (code != null && code.startsWith("unregistered|")) {
+                    // Tách lấy mã Token và set mã lỗi
+                    errCode = "unregistered";
+                    tempToken = code.substring(13); // Bỏ chữ "unregistered|" đi
                 } else if ("unregistered".equals(code)) {
                     errCode = "unregistered";
                 }
@@ -70,11 +75,24 @@ public class SecurityConfig {
             // 2. Fallback: Kiểm tra message nếu không bắt được mã lỗi
             else if (exception.getMessage() != null) {
                 if (exception.getMessage().contains("account_disabled")) errCode = "disabled";
+                else if (exception.getMessage().contains("unregistered|")) {
+                    errCode = "unregistered";
+                    // Tìm kiếm và cắt chuỗi (Hơi phức tạp nên đoạn trên thường sẽ bắt được)
+                    int index = exception.getMessage().indexOf("unregistered|");
+                    int end = exception.getMessage().indexOf(" ", index);
+                    if(end == -1) end = exception.getMessage().length();
+                    tempToken = exception.getMessage().substring(index + 13, end);
+                }
                 else if (exception.getMessage().contains("unregistered")) errCode = "unregistered";
             }
 
-            // Redirect về Frontend kèm mã lỗi chuẩn
-            response.sendRedirect("http://localhost:5173/login?google_error=" + errCode);
+            //  Redirect về Frontend kèm mã lỗi VÀ TOKEN
+            String redirectUrl = "http://localhost:5173/login?google_error=" + errCode;
+            if (!tempToken.isEmpty()) {
+                redirectUrl += "&tempToken=" + tempToken;
+            }
+            
+            response.sendRedirect(redirectUrl);
         };
     }
 
@@ -102,7 +120,7 @@ public class SecurityConfig {
             	// Dòng dưới tuyến thêm
             	.requestMatchers("/rest/**").permitAll() 
                 .requestMatchers("/imgs/**", "/css/**", "/js/**", "/static/**", "/error").permitAll()
-                .requestMatchers("/rest/account/register").permitAll() 
+                .requestMatchers("/rest/account/register", "/rest/account/register-google").permitAll() // Thêm quyền cho API mới
                 .requestMatchers("/rest/client/**", "/rest/auth/**").permitAll()
                 .requestMatchers("/rest/admin/**").hasAnyRole("ADMIN", "DIRE", "STAF")
                 .requestMatchers("/rest/account/**", "/rest/orders/**", "/rest/cart/**", "/rest/reviews/**")
