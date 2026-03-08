@@ -99,6 +99,7 @@ public class SecurityConfig {
             .securityContext(securityContext -> securityContext.requireExplicitSave(false))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
+            	// Dòng dưới tuyến thêm
             	.requestMatchers("/rest/**").permitAll() 
                 .requestMatchers("/imgs/**", "/css/**", "/js/**", "/static/**", "/error").permitAll()
                 .requestMatchers("/rest/account/register").permitAll() 

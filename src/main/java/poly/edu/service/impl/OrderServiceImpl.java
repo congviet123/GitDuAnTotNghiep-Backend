@@ -96,7 +96,7 @@ public class OrderServiceImpl implements OrderService {
             details.add(detail);
             
             // Tìm CartID để xóa
-            Optional<Cart> cartItem = cartRepository.findByUser_UsernameAndProduct_Id(username, item.getProductId());
+            Optional<Cart> cartItem = cartRepository.findByAccountUsernameAndProductId(username, item.getProductId());
             cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 

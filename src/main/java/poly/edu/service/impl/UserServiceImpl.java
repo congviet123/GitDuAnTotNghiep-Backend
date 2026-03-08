@@ -216,7 +216,7 @@ public class UserServiceImpl implements UserService {
         try {
             // [SỬA LỖI]: Xóa toàn bộ sản phẩm trong giỏ của user này trước khi xóa user
             // Sử dụng hàm đã định nghĩa trong CartRepository
-            cartRepository.deleteAllByUser_Username(username);
+            cartRepository.deleteAllByAccountUsername(username);
             
             // Xóa user
             userRepository.deleteById(username);
