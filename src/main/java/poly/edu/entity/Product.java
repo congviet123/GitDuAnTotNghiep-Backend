@@ -9,12 +9,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-<<<<<<< HEAD
 import com.fasterxml.jackson.annotation.JsonFormat;
-=======
-import com.fasterxml.jackson.annotation.JsonFormat; // [QUAN TRỌNG] Import thư viện này
-import java.time.LocalDate;
->>>>>>> 26c4aa114effa03283d0371373d861a845cf6c72
 
 @Entity
 @Table(name = "Product")
@@ -64,7 +59,7 @@ public class Product implements Serializable {
     
     private Boolean available = true;
     
-    // NGÀY NHẬP HÀNG GẦN NHẤT - Sẽ được cập nhật tự động từ Phiếu Nhập
+    // NGÀY NHẬP HÀNG GẦN NHẤT - Sử dụng lại cột create_date
     @Temporal(TemporalType.DATE)
     @Column(name = "create_date")
     @JsonFormat(pattern = "yyyy-MM-dd", timezone = "Asia/Ho_Chi_Minh")
@@ -84,15 +79,4 @@ public class Product implements Serializable {
     @JsonIgnore
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     private List<OrderDetail> orderDetails;
-    
-    @Column(name = "last_import_date")
-    private LocalDate lastImportDate;
-    
-    public LocalDate getLastImportDate() {
-        return lastImportDate;
-    }
-
-    public void setLastImportDate(LocalDate lastImportDate) {
-        this.lastImportDate = lastImportDate;
-    }
 }

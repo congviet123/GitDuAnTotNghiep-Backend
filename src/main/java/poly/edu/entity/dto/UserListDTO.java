@@ -41,8 +41,6 @@ public class UserListDTO {
         this.roleName = roleName;
         this.enabled = enabled;
     }
-<<<<<<< HEAD
+
 }
-=======
-}
->>>>>>> 26c4aa114effa03283d0371373d861a845cf6c72
+
