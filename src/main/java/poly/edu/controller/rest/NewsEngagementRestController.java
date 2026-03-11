@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.RequiredArgsConstructor;
+import poly.edu.entity.dto.ShareDTO;
 import poly.edu.service.NewsEngagementService;
 
 @CrossOrigin("*")
@@ -40,9 +41,9 @@ public class NewsEngagementRestController {
 
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/share/{newsId}")
-    public ResponseEntity<?> recordShare(@PathVariable Long newsId, @RequestParam String platform, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<?> recordShare(@PathVariable Long newsId, @RequestBody ShareDTO shareDTO, @AuthenticationPrincipal UserDetails userDetails) {
         try {
-            newsEngagementService.recordShare(newsId, platform, userDetails);
+            newsEngagementService.recordShare(newsId, shareDTO, userDetails);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
