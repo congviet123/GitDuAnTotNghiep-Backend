@@ -13,12 +13,19 @@ import poly.edu.entity.User;
 import poly.edu.repository.UserRepository;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @Autowired private UserRepository userRepository;
+
+    //  BỘ NHỚ TẠM LƯU THÔNG TIN GOOGLE
+    // Lưu trữ theo dạng: Key = tempToken, Value = Thông tin từ Google
+    public static final Map<String, OAuth2User> pendingGoogleUsers = new ConcurrentHashMap<>();
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -34,9 +41,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (userOptional.isPresent()) {
             user = userOptional.get();
             
-            // --- [CẬP NHẬT] LOGIC CHẶN VÀ THÔNG BÁO LỖI ---
+            // --- LOGIC CHẶN VÀ THÔNG BÁO LỖI TÀI KHOẢN KHÓA ---
             if (!user.getEnabled()) {
-                // Ném lỗi với message chuẩn theo yêu cầu
                 throw new OAuth2AuthenticationException(new OAuth2Error("account_disabled"), 
                         "Tài khoản của bạn đã tạm bị khóa, vui lòng liên hệ admin để mở tài khoản");
             }
@@ -47,9 +53,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 userRepository.save(user);
             }
         } else {
-            // Nếu chưa có tài khoản -> Chặn đăng nhập (Logic cũ)
-            // Mã lỗi "unregistered" sẽ được hứng ở SecurityConfig
-            throw new OAuth2AuthenticationException(new OAuth2Error("unregistered"), "Email này chưa đăng ký tài khoản.");
+            // XỬ LÝ CHƯA ĐĂNG KÝ TÀI KHOẢN
+            
+            // Tạo 1 mã token ngẫu nhiên
+            String tempToken = UUID.randomUUID().toString();
+            
+            // Lưu thông tin Google vào bộ nhớ tạm trong 1 khoảng thời gian ngắn
+            pendingGoogleUsers.put(tempToken, oauth2User);
+            
+            // Ném lỗi kèm theo tempToken để truyền sang file SecurityConfig.
+            // Mã lỗi sẽ có dạng: unregistered|mã-token-ngẫu-nhiên
+            throw new OAuth2AuthenticationException(new OAuth2Error("unregistered|" + tempToken), "Email này chưa đăng ký tài khoản.");
         }
 
         // 3. Trả về user với quyền hạn lấy từ DB

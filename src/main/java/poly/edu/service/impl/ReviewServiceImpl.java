@@ -57,7 +57,7 @@ public class ReviewServiceImpl implements ReviewService {
         User user = userRepository.findById(username)
                     .orElseThrow(() -> new RuntimeException("Lỗi bảo mật: Người dùng không tồn tại."));
         
-        // 2. [LOGIC MỚI] Kiểm tra xem khách hàng này có đơn hàng hợp lệ để đánh giá không
+        // 2. Kiểm tra xem khách hàng này có đơn hàng hợp lệ để đánh giá không
         List<OrderDetail> eligibles = orderDetailRepository.findEligibleOrderDetailsForReview(username, reviewDto.getProductId());
         
         if (eligibles.isEmpty()) {
@@ -78,6 +78,25 @@ public class ReviewServiceImpl implements ReviewService {
         review.setRating(reviewDto.getRating());
         review.setReviewDate(new Date()); 
         
-        return reviewRepository.save(review);
+        // 5. Sử dụng Try-Catch để lọc sạch lỗi từ Database Trigger
+        try {
+            return reviewRepository.save(review);
+        } catch (Exception e) {
+            // Lấy nguyên nhân gốc rễ của lỗi
+            String errorMessage = e.getMessage();
+            Throwable rootCause = e.getCause();
+            while (rootCause != null) {
+                errorMessage = rootCause.getMessage();
+                rootCause = rootCause.getCause();
+            }
+            
+            // Nếu lỗi chứa câu thông báo từ Trigger của SQL
+            if (errorMessage != null && errorMessage.contains("Đơn hàng chưa hoàn thành")) {
+                throw new RuntimeException("Đơn hàng chưa hoàn thành, bạn chưa thể đánh giá sản phẩm này!");
+            }
+            
+            // Nếu là một lỗi SQL khác
+            throw new RuntimeException("Lỗi khi gửi đánh giá: " + (errorMessage != null ? errorMessage : "Vui lòng thử lại sau."));
+        }
     }
 }

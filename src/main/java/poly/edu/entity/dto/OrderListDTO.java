@@ -12,6 +12,6 @@ public class OrderListDTO {
     private BigDecimal totalAmount;
     private String status;
     private String accountFullname; // Tên đầy đủ người đặt (cho Admin)
-    
     private String paymentMethod; // Phương thức thanh toán
+    private Date deliveryDate;
 }

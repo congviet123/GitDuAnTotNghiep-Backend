@@ -21,6 +21,5 @@ public class NewsCreateDTO implements Serializable {
     @NotBlank(message = "Title cannot be blank")
     private String content;
 
-    private String image;
-
+    private String productLink;
 }

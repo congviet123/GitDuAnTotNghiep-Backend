@@ -163,6 +163,42 @@ public class MailServiceImpl implements MailService {
         }
     }
 
+    @Override
+    public void sendShareLinkEmail(String receiverEmail, String senderName, String newsTitle, String newsUrl) {
+        try {
+            MimeMessage mail = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mail, true, "UTF-8");
+
+            helper.setFrom(new InternetAddress(fromEmail, "Trái Cây Nhập Khẩu"));
+            helper.setTo(receiverEmail);
+            helper.setSubject(senderName + " muốn chia sẻ một bài viết với bạn!");
+
+            String message = "Bạn hãy xem thử bài viết này nhé, rất thú vị!";
+
+            String htmlContent = "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px;'>"
+                    + "<div style='background-color: #28a745; padding: 20px; text-align: center; color: white;'>"
+                    + "<h2 style='margin: 0;'>CÓ NGƯỜI VỪA CHIA SẺ BÀI VIẾT CHO BẠN</h2>"
+                    + "</div>"
+                    + "<div style='padding: 20px;'>"
+                    + "<p>Chào bạn,</p>"
+                    + "<p><strong>" + senderName + "</strong> vừa gửi cho bạn một bài viết từ hệ thống Trái Cây Nhập Khẩu:</p>"
+                    + "<div style='background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;'>"
+                    + "<h3 style='margin-top: 0; color: #333;'>" + newsTitle + "</h3>"
+                    + "<p style='font-style: italic; color: #666;'>\"" + message + "\"</p>"
+                    + "<a href='" + newsUrl + "' style='display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;'>Đọc bài viết ngay</a>"
+                    + "</div>"
+                    + "</div>"
+                    + "</div>";
+
+            helper.setText(htmlContent, true);
+            mailSender.send(mail);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Lỗi gửi mail chia sẻ: " + e.getMessage());
+        }
+    }
+
     // Helper chuyển đổi trạng thái
     private String convertStatusToVN(String status) {
         if (status == null) return "Không xác định";

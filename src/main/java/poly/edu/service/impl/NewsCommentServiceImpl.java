@@ -3,6 +3,9 @@ package poly.edu.service.impl;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -65,9 +68,6 @@ public class NewsCommentServiceImpl implements NewsCommentService {
                 .content(newsComment.getContent())
                 .isVisiable(newsComment.getIsVisible())
                 .createdDate(newsComment.getCreateDate())
-                .replyCount(0)
-                .hasMoreReplies(false)
-                .replies(new ArrayList<>())
                 .build();
     }
 
@@ -87,15 +87,56 @@ public class NewsCommentServiceImpl implements NewsCommentService {
     }
 
     @Override
-    public List<NewsCommentResponseDTO> getRootComments(Long newsId, int offset, int limit) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getRootComments'");
+    public Page<NewsCommentResponseDTO> getRootComments(Long newsId, int page, int size) {
+        log.info("Attempting to get root comments for newsId: {}", newsId);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<NewsComment> newsComments = newsCommentRepository.findByNewsIdAndParentIsNullAndIsVisibleTrue(newsId,
+                pageable);
+        log.info("Successfully retrieved root comments for newsId");
+        return newsComments.map(n -> NewsCommentResponseDTO.builder()
+                .id(n.getId())
+                .newsId(newsId)
+                .author(n.getUser().getFullname())
+                .parentId(null)
+                .content(n.getContent())
+                .isVisiable(n.getIsVisible())
+                .createdDate(n.getCreateDate())
+                .build());
     }
 
     @Override
-    public List<NewsCommentResponseDTO> getReplies(Long parentId, int offset, int limit) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getReplies'");
+    public Page<NewsCommentResponseDTO> getReplies(Long parentId, int page, int size) {
+        log.info("Attempting to get relies comments for parentId: {}", parentId);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<NewsComment> newsComments = newsCommentRepository.findByParentIdAndIsVisibleTrue(parentId, pageable);
+        log.info("Successfully retrieved replies comments for parentId");
+        return newsComments.map(n -> NewsCommentResponseDTO.builder()
+                .id(n.getId())
+                .newsId(n.getNews().getId())
+                .author(n.getUser().getFullname())
+                .parentId(parentId)
+                .content(n.getContent())
+                .isVisiable(n.getIsVisible())
+                .createdDate(n.getCreateDate())
+                .build());
+
     }
 
+    @Override
+    public Page<NewsCommentResponseDTO> getCommentsByNewsId(Long newsId, int page, int size) {
+        log.info("Attempting to get comments for newsId: {}", newsId);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<NewsComment> newsComments = newsCommentRepository.findAllByNewsId(newsId,
+                pageable);
+        log.info("Successfully retrieved comments for newsId");
+        return newsComments.map(n -> NewsCommentResponseDTO.builder()
+                .id(n.getId())
+                .newsId(newsId)
+                .author(n.getUser().getFullname())
+                .parentId(null)
+                .content(n.getContent())
+                .isVisiable(n.getIsVisible())
+                .createdDate(n.getCreateDate())
+                .build());
+    }
 }

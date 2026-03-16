@@ -59,6 +59,11 @@ public class Order implements Serializable {
     @Column(name = "export_date")
     private Date exportDate;
     
+    // --- THỜI GIAN GIAO HÀNG THÀNH CÔNG (Dùng để đếm ngược 24h hoàn trả) ---
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "delivery_date")
+    private Date deliveryDate;
+    
     // Mã Voucher (nếu có)
     @Column(name = "voucher_code")
     private String voucherCode;

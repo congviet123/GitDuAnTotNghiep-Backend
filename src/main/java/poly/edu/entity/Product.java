@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonFormat; // [QUAN TRỌNG] Import thư viện này
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 @Entity
 @Table(name = "Product")
@@ -34,7 +34,7 @@ public class Product implements Serializable {
     @Column(name = "original_price", precision = 18, scale = 2)
     private BigDecimal originalPrice;
 
-    // 3. GIÁ NHẬP (Import Price)
+    // 3. GIÁ NHẬP VỐN (Import Price) - Sẽ được cập nhật tự động từ Phiếu Nhập
     @Column(name = "import_price", precision = 18, scale = 2)
     private BigDecimal importPrice = BigDecimal.ZERO;
 
@@ -44,7 +44,7 @@ public class Product implements Serializable {
 
     // -----------------------
 
-    // Số lượng tồn kho (Kg)
+    // SỐ LƯỢNG TỒN KHO (Kg) - Sẽ được cộng dồn tự động từ Phiếu Nhập
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity = BigDecimal.ZERO; 
 
@@ -59,13 +59,15 @@ public class Product implements Serializable {
     
     private Boolean available = true;
     
-    // Thêm @JsonFormat để Spring Boot hiểu chuỗi "yyyy-MM-dd" từ VueJS gửi lên
+    // NGÀY NHẬP HÀNG GẦN NHẤT - Sử dụng lại cột create_date
     @Temporal(TemporalType.DATE)
     @Column(name = "create_date")
     @JsonFormat(pattern = "yyyy-MM-dd", timezone = "Asia/Ho_Chi_Minh")
     private Date createDate = new Date();
     
-    // Quan hệ
+    // ==========================================
+    // CÁC MỐI QUAN HỆ (RELATIONSHIPS)
+    // ==========================================
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;

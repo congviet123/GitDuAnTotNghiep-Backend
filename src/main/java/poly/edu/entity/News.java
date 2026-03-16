@@ -58,6 +58,9 @@ public class News {
     @Builder.Default
     private Integer viewCount = 0;
 
+    @Column(name = "product_link")
+    private String productLink;
+
     @Builder.Default
     @OneToMany(mappedBy = "news", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NewsLike> likes = new ArrayList<>();
