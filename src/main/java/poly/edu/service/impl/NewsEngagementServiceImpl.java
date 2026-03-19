@@ -11,11 +11,13 @@ import poly.edu.entity.NewsLike;
 import poly.edu.entity.NewsShare;
 import poly.edu.entity.NewsView;
 import poly.edu.entity.User;
+import poly.edu.entity.dto.ShareDTO;
 import poly.edu.repository.NewsLikeRepository;
 import poly.edu.repository.NewsRepository;
 import poly.edu.repository.NewsShareRepository;
 import poly.edu.repository.NewsViewRepository;
 import poly.edu.repository.UserRepository;
+import poly.edu.service.MailService;
 import poly.edu.service.NewsEngagementService;
 
 @Service
@@ -29,6 +31,7 @@ public class NewsEngagementServiceImpl implements NewsEngagementService {
     private final NewsViewRepository newsViewRepository;
     private final NewsLikeRepository newsLikeRepository;
     private final NewsShareRepository newsShareRepository;
+    private final MailService mailService;
 
     @Override
     public void incrementView(Long newsId) {
@@ -65,18 +68,36 @@ public class NewsEngagementServiceImpl implements NewsEngagementService {
     }
 
     @Override
-    public void recordShare(Long newsId, String platform, UserDetails userDetails) {
-        log.info("Recording a new share for news ID: {}", newsId);
+    @Transactional
+    public void recordShare(Long newsId, ShareDTO shareDTO, UserDetails userDetails) {
+        log.info("Recording a new share for news ID: {} via platform: {}", newsId, shareDTO.getPlatform());
+
         String username = userDetails.getUsername();
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+
         News news = newsRepository.findById(newsId)
                 .orElseThrow(() -> new RuntimeException("News not found with Id: " + newsId));
+
+        if ("EMAIL".equalsIgnoreCase(shareDTO.getPlatform())) {
+            try {
+                mailService.sendShareLinkEmail(
+                        shareDTO.getReceiverEmail(),
+                        user.getFullname(),
+                        news.getTitle(),
+                        shareDTO.getNewsUrl()
+                );
+            } catch (Exception e) {
+                log.error("Failed to send share email to: {}", shareDTO.getReceiverEmail(), e);
+            }
+        }
+
         NewsShare newsShare = NewsShare.builder()
                 .user(user)
                 .news(news)
-                .platform(platform)
+                .platform(shareDTO.getPlatform())
                 .build();
+
         newsShareRepository.save(newsShare);
         log.info("Successfully recorded share for news ID: {}", newsId);
     }

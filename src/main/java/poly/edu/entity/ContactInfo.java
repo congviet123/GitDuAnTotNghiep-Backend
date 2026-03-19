@@ -2,10 +2,10 @@ package poly.edu.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import java.util.Date;
+// import java.util.Date;  // Bỏ import này
 
 @Entity
-@Table(name = "Contact_Info")
+@Table(name = "Shop_Info")
 @Data
 public class ContactInfo {
     
@@ -22,15 +22,17 @@ public class ContactInfo {
     @Column(name = "email", length = 100, nullable = false)
     private String email;
     
-    @Column(name = "last_updated")
-    private Date lastUpdated;
+    // COMMENT hoặc XÓA các dòng này
+    // @Column(name = "last_updated")
+    // private Date lastUpdated;
     
-    @Column(name = "map_url", columnDefinition = "text")
-    private String mapUrl;
+    @Column(name = "map_iframe", columnDefinition = "nvarchar(max)")
+    private String mapIframe;
     
-    @PreUpdate
-    @PrePersist
-    protected void onUpdate() {
-        lastUpdated = new Date();
-    }
+    // XÓA hoặc COMMENT method này
+    // @PreUpdate
+    // @PrePersist
+    // protected void onUpdate() {
+    //     lastUpdated = new Date();
+    // }
 }

@@ -1,6 +1,7 @@
 package poly.edu.service;
 
 import org.springframework.security.core.userdetails.UserDetails;
+import poly.edu.entity.dto.ShareDTO;
 
 public interface NewsEngagementService {
 
@@ -8,5 +9,5 @@ public interface NewsEngagementService {
 
     void toggleLike(Long newsId, UserDetails userDetails);
 
-    void recordShare(Long newsId, String platform, UserDetails userDetails);
+    void recordShare(Long newsId, ShareDTO shareDTO, UserDetails userDetails);
 }

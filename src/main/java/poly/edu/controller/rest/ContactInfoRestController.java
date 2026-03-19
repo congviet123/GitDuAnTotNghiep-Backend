@@ -8,7 +8,7 @@ import poly.edu.entity.ContactInfo;
 import poly.edu.service.ContactInfoService;
 
 @RestController
-@RequestMapping("/rest/contact-info")
+@RequestMapping("/rest/contact-info")  // GIỮ NGUYÊN endpoint
 @CrossOrigin(origins = "*")
 public class ContactInfoRestController {
     

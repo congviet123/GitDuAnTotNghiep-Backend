@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ContactInfoRepository extends JpaRepository<ContactInfo, Integer> {
     
-    // Lấy thông tin liên hệ (chỉ có 1 dòng duy nhất)
+    // Query vẫn giữ nguyên vì dùng entity ContactInfo
     @Query("SELECT c FROM ContactInfo c ORDER BY c.id DESC LIMIT 1")
     ContactInfo findLatestContactInfo();
 }

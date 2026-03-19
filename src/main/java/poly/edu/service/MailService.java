@@ -15,4 +15,6 @@ public interface MailService {
     
 	// 4. Gửi mail có đính kèm file & QR Code (Yêu cầu hoàn trả đầy đủ)
     void sendEmailWithReturnRequest(String subject, String body, MultipartFile qrCode, MultipartFile[] attachments);
+
+    void sendShareLinkEmail(String receiverEmail, String senderName, String newsTitle, String newsUrl);
 }
