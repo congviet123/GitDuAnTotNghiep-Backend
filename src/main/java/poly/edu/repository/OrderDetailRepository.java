@@ -21,5 +21,5 @@ public interface OrderDetailRepository extends JpaRepository<OrderDetail, Intege
            "AND od.order.status IN ('DELIVERED', 'COMPLETED', 'Giao hàng thành công') " +
            "AND NOT EXISTS (SELECT r FROM Review r WHERE r.orderDetail.id = od.id)")
     List<OrderDetail> findEligibleOrderDetailsForReview(@Param("username") String username, @Param("productId") Integer productId);
-
+    
 }

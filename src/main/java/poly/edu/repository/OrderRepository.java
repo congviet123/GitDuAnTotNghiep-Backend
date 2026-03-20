@@ -70,21 +70,123 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     // =========================================================================
     // 3. PHƯƠNG THỨC BÁO CÁO & THỐNG KÊ
     // =========================================================================
-
+    
+    
+    // code mới của tuyến làm doshboard
+    
+    
     /**
-     * Tính tổng doanh thu theo từng tháng của một năm (loại bỏ các đơn đã hủy).
+     * Tính tổng doanh thu theo từng tháng của một năm (chỉ tính đơn đã hoàn tất).
      */
-    @Query("SELECT MONTH(o.createDate), SUM(o.totalAmount) " +
-           "FROM Order o " +
-           "WHERE YEAR(o.createDate) = :year " +
-           "AND o.status <> 'CANCELLED' " + 
-           "GROUP BY MONTH(o.createDate)")
-    List<Object[]> getMonthlyRevenue(@Param("year") Integer year);
+    @Query(value = """
+    		SELECT MONTH(o.create_date) AS month,
+    		       SUM(o.total_amount) AS totalRevenue
+    		FROM Orders o
+    		WHERE o.status IN ('COMPLETED')
+    		AND YEAR(o.create_date) = :year
+    		GROUP BY MONTH(o.create_date)
+    		ORDER BY MONTH(o.create_date)
+    		""", nativeQuery = true)
+    		List<Object[]> getMonthlyRevenue(@Param("year") int year);
     
     
-    // Tính năng đánh dấu đã in
+    // tổng doanh thu theo tháng
     @Modifying
     @Transactional
     @Query("UPDATE Order o SET o.isPrinted = true WHERE o.id = :id")
     void markAsPrinted(@Param("id") Integer id);
+    
+    
+    
+    @Query(value = """
+    		SELECT DATEPART(WEEK, o.create_date) - 
+    		       DATEPART(WEEK, DATEFROMPARTS(:year,:month,1)) + 1 AS week,
+    		       SUM(o.total_amount) AS revenue
+    		FROM Orders o
+    		WHERE o.status IN ('COMPLETED')
+    		AND YEAR(o.create_date) = :year
+    		AND MONTH(o.create_date) = :month
+    		GROUP BY DATEPART(WEEK, o.create_date)
+    		ORDER BY week
+    		""", nativeQuery = true)
+    		List<Object[]> getWeeklyRevenue(
+    		        @Param("year") int year,
+    		        @Param("month") int month
+    		);
+    		
+    		// =========================================================================
+    		// 4. DASHBOARD SẢN PHẨM & ĐƠN HÀNG
+    		// =========================================================================
+
+    		/**
+    		 * TOP 3 SẢN PHẨM BÁN CHẠY
+    		 * Tính theo tổng KG đã bán trong các đơn COMPLETED hoặc DELIVERED
+    		 */
+    		@Query(value = """
+    				SELECT p.name,
+    				       SUM(od.quantity) AS totalKg
+    				FROM Order_Detail od
+    				JOIN Orders o ON od.order_id = o.id
+    				JOIN Product p ON od.product_id = p.id
+    				WHERE o.status IN ('COMPLETED','DELIVERED')
+    				AND YEAR(o.create_date) = :year
+    				AND (
+    				        :month = 'all'
+    				        OR MONTH(o.create_date) = TRY_CAST(:month AS INT)
+    				    )
+    				GROUP BY p.id, p.name
+    				ORDER BY totalKg DESC
+    				""", nativeQuery = true)
+    				List<Object[]> getTopSellingProducts(
+    				        @Param("year") int year,
+    				        @Param("month") String month
+    				);
+    		/**
+    		 * TOP 3 SẢN PHẨM TỒN KHO NHIỀU NHẤT
+    		 * Lấy từ bảng Product
+    		 */
+    		
+
+    		/**
+    		 * THỐNG KÊ ĐƠN HÀNG
+    		 * Đếm số đơn COMPLETED / CANCELLED
+    		 */
+    		@Query("""
+    		SELECT o.status, COUNT(o)
+    		FROM Order o
+    		GROUP BY o.status
+    		""")
+    		List<Object[]> getOrderStatistics();
+    		
+    		
+    		@Query(value = """
+    				SELECT p.name,
+    				       SUM(od.quantity)
+    				FROM order_details od
+    				JOIN orders o ON od.order_id = o.id
+    				JOIN products p ON od.product_id = p.id
+    				WHERE YEAR(o.create_date) = :year
+    				AND (:month = 'all' OR MONTH(o.create_date) = :month)
+    				GROUP BY p.name
+    				ORDER BY SUM(od.quantity) DESC
+    				""", nativeQuery = true)
+    				List<Object[]> getTopSellingProductsByTime(
+    				        @Param("year") int year,
+    				        @Param("month") String month
+    				);
+    			
+    				@Query(value = """
+    						SELECT 
+    						    status,
+    						    COUNT(*) as total
+    						FROM Orders
+    						WHERE YEAR(create_date) = :year
+    						AND (
+    						        :month = 'all'
+    						        OR MONTH(create_date) = TRY_CAST(:month AS INT)
+    						    )
+    						AND status IN ('COMPLETED','CANCELLED_REFUNDED')
+    						GROUP BY status
+    						""", nativeQuery = true)
+    						List<Object[]> getOrderStatistics(int year, String month);
 }
