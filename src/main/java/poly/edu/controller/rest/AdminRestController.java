@@ -118,7 +118,7 @@ public class AdminRestController {
     }
 
     // ======================================================================
-    // 2. QUẢN LÝ DANH MỤC (GIỮ NGUYÊN)
+    // 2. QUẢN LÝ DANH MỤC 
     // ======================================================================
     @GetMapping("/categories")
     public ResponseEntity<List<Category>> getAllCategories() {
@@ -144,7 +144,7 @@ public class AdminRestController {
     }
 
     // ======================================================================
-    // 3. QUẢN LÝ NGƯỜI DÙNG (GIỮ NGUYÊN)
+    // 3. QUẢN LÝ NGƯỜI DÙNG 
     // ======================================================================
     
     @GetMapping("/users")
