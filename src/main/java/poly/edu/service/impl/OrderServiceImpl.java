@@ -41,6 +41,8 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private CartRepository cartRepository;
     @Autowired private MailService mailService;
     
+    //  Hàm chuyển đổi (Mapper) từ đối tượng Entity Order sang DTO (Data Transfer Object)
+    // Giúp giảm dung lượng dữ liệu trả về cho Frontend và bảo mật thông tin nhạy cảm.
     private OrderListDTO mapToDto(Order order) {
         OrderListDTO dto = new OrderListDTO();
         dto.setId(order.getId());
@@ -56,18 +58,18 @@ public class OrderServiceImpl implements OrderService {
         return dto;
     }
 
-    // --- HÀM HỖ TRỢ: CỘNG LẠI TỒN KHO ---
+    //  Hàm hỗ trợ - Hoàn lại số lượng tồn kho cho các Sản phẩm trong Đơn hàng bị hủy/trả.
     private void restoreProductStock(Order order) {
         for (OrderDetail detail : order.getOrderDetails()) {
             Product product = detail.getProduct();
             BigDecimal restoredQty = product.getQuantity().add(detail.getQuantity());
             product.setQuantity(restoredQty);
-            product.setAvailable(true); 
+            product.setAvailable(true); // Mở bán lại nếu trước đó bị hết hàng
             productRepository.save(product);
         }
     }
     
-    // --- HÀM HỖ TRỢ: KIỂM TRA QUÁ 24H HOÀN TRẢ ---
+    // Hàm hỗ trợ - Kiểm tra xem đơn hàng đã giao quá 24h chưa (Quy định không được hoàn trả sau 24h).
     private void check24hReturnPolicy(Order order) {
         if (order.getDeliveryDate() == null) return; // Nếu chưa giao hoặc lỗi ngày thì bỏ qua
 
@@ -80,22 +82,22 @@ public class OrderServiceImpl implements OrderService {
     }
 
     // =========================================================================
-    // TỰ ĐỘNG CHUYỂN TRẠNG THÁI "HOÀN TẤT ĐƠN" SAU 24H GIAO HÀNG
+    // [JOB TỰ ĐỘNG]: TỰ ĐỘNG CHUYỂN TRẠNG THÁI "HOÀN TẤT ĐƠN" SAU 24H GIAO HÀNG
     // =========================================================================
-    @Scheduled(fixedRate = 60000) // Chạy ngầm mỗi 60 giây (1 phút)
+    @Scheduled(fixedRate = 60000) // Chạy ngầm mỗi 60 giây (1 phút) một lần trên Server
     @Transactional
     public void autoCompleteDeliveredOrders() {
-        // Tính mốc thời gian: Hiện tại trừ đi 24 tiếng
+        // Tính mốc thời gian: Thời điểm hiện tại lùi lại 24 tiếng
         long cutoffMillis = System.currentTimeMillis() - (24 * 60 * 60 * 1000);
         Date cutoffDate = new Date(cutoffMillis);
 
-        // Quét DB tìm các đơn DELIVERED đã giao lâu hơn mốc cutoffDate
+        // Quét DB tìm các đơn có trạng thái DELIVERED (Đã giao) mà có ngày giao lâu hơn mốc cutoffDate
         List<Order> expiredOrders = orderRepository.findDeliveredOrdersOlderThan(cutoffDate);
 
         if (!expiredOrders.isEmpty()) {
             for (Order order : expiredOrders) {
-                order.setStatus("COMPLETED"); // Đổi trạng thái thành Hoàn tất
-                // Lưu vết log hệ thống (tùy chọn)
+                order.setStatus("COMPLETED"); // Chuyển trạng thái chốt đơn (Không cho trả hàng nữa)
+                // Lưu vết log hệ thống vào phần Ghi chú
                 order.setNotes((order.getNotes() == null ? "" : order.getNotes()) + " | [Hệ thống tự động chốt đơn sau 24h]");
             }
             orderRepository.saveAll(expiredOrders);
@@ -104,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
     }
     // =========================================================================
 
-    
+    //  Lọc đơn hàng cho trang Quản trị Admin
     @Override
     public List<Order> filterOrdersForAdmin(String status, String paymentMethod, LocalDateTime start, LocalDateTime end) {
         String statusParam = (status == null || status.equals("ALL")) ? null : status;
@@ -112,6 +114,7 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.filterOrders(statusParam, methodParam, start, end);
     }
     
+    //  Tính năng Khách hàng Đặt Hàng Mới (Checkout)
     @Override
     @Transactional
     public Order placeOrder(String username, OrderCreateDTO orderDTO) {
@@ -122,6 +125,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetail> details = new ArrayList<>();
         List<Integer> cartIdsToDelete = new ArrayList<>();
 
+        // Duyệt qua từng sản phẩm mà khách đặt mua
         for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
             
             Product product = productRepository.findById(item.getProductId())
@@ -129,43 +133,51 @@ public class OrderServiceImpl implements OrderService {
             
             BigDecimal buyQuantity = BigDecimal.valueOf(item.getQuantity());
 
+            // Kiểm tra tồn kho có đủ không
             if (product.getQuantity().compareTo(buyQuantity) < 0) {
                 throw new RuntimeException("Sản phẩm '" + product.getName() + "' không đủ số lượng.");
             }
 
-            // TRỪ TỒN KHO
+            // TRỪ TỒN KHO THỰC TẾ TRONG DATABASE
             BigDecimal newStock = product.getQuantity().subtract(buyQuantity);
             product.setQuantity(newStock);
-            if (newStock.compareTo(BigDecimal.ZERO) <= 0) product.setAvailable(false);
+            if (newStock.compareTo(BigDecimal.ZERO) <= 0) product.setAvailable(false); // Hết hàng thì tự động tắt bán
             productRepository.save(product);
 
+            // Cộng dồn thành tiền
             BigDecimal lineTotal = product.getPrice().multiply(buyQuantity);
             totalAmount = totalAmount.add(lineTotal);
             
+            // Tạo chi tiết đơn hàng
             OrderDetail detail = new OrderDetail();
             detail.setQuantity(buyQuantity); 
             detail.setPrice(product.getPrice());
             detail.setProduct(product);
             details.add(detail);
             
+            // Lưu lại ID giỏ hàng để lát nữa xóa (vì đã đặt mua xong)
             Optional<Cart> cartItem = cartRepository.findByUser_UsernameAndProduct_Id(username, item.getProductId());
             cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 
+        // Tạo Đơn hàng lưu DB
         Order order = new Order();
         order.setAccount(user);
         order.setShippingAddress(orderDTO.getShippingAddress());
         order.setNotes(orderDTO.getNotes());
         order.setTotalAmount(totalAmount);
         order.setPaymentMethod(orderDTO.getPaymentMethod());
-        order.setStatus("PENDING");
+        order.setStatus("PENDING"); // Đơn mới luôn ở trạng thái Chờ xử lý
         
         Order savedOrder = orderRepository.save(order);
+        
+        // Gắn ID đơn hàng vào từng chi tiết và lưu
         for (OrderDetail detail : details) {
             detail.setOrder(savedOrder);
             orderDetailRepository.save(detail);
         }
         
+        // Xóa giỏ hàng
         for (Integer cartId : cartIdsToDelete) {
             cartService.remove(cartId);
         }
@@ -173,7 +185,7 @@ public class OrderServiceImpl implements OrderService {
         return savedOrder;
     }
 
-    /// --- YÊU CẦU HOÀN TRẢ ĐƠN HÀNG ĐÃ GIAO (CÓ GỬI MAIL CHO ADMIN) ---
+    ///  Khách hàng yêu cầu hoàn trả đơn (Có gắn ảnh, QR code và gửi email thông báo cho Admin)
     @Override
     @Transactional
     public void requestReturnFull(String username, Integer orderId, 
@@ -185,6 +197,8 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại."));
 
         if (!order.getAccount().getUsername().equals(username)) throw new RuntimeException("Lỗi quyền truy cập.");
+        
+        // Ràng buộc chỉ đơn đã giao hoặc hoàn tất mới được trả
         if (!"DELIVERED".equals(order.getStatus()) && !"COMPLETED".equals(order.getStatus())) {
             throw new RuntimeException("Chỉ đơn hàng đã giao mới có thể hoàn trả.");
         }
@@ -192,12 +206,14 @@ public class OrderServiceImpl implements OrderService {
         // --- CHECK LUẬT 24H ---
         check24hReturnPolicy(order);
 
+        // Chuyển trạng thái sang Yêu cầu hoàn trả
         order.setStatus("RETURN_REQUESTED");
         String returnInfo = String.format(" [Yêu cầu trả: %s | Bank: %s-%s-%s | KH: %s-%s]", 
                                           reason, bankName, accNo, accName, senderName, senderPhone);
         order.setNotes((order.getNotes() == null ? "" : order.getNotes()) + returnInfo);
         orderRepository.save(order);
 
+        // Xây dựng nội dung Email (Bảng HTML hiển thị sản phẩm trả về)
         StringBuilder productTable = new StringBuilder("<table style='width:100%; border-collapse: collapse; font-size: 14px;'>");
         productTable.append("<tr style='background: #f2f2f2;'><th>Sản phẩm</th><th>SL</th><th>Giá</th><th>Tổng</th></tr>");
         java.text.NumberFormat vnCurrency = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
@@ -231,6 +247,7 @@ public class OrderServiceImpl implements OrderService {
         mailService.sendEmailWithReturnRequest(subject, body, qrFile, files); 
     }
 
+    // Hủy đơn hàng THÔNG THƯỜNG (Thanh toán COD)
     @Override
     @Transactional
     public Order cancelOrder(String username, Integer orderId, String reason) {
@@ -238,16 +255,17 @@ public class OrderServiceImpl implements OrderService {
         if (!order.getAccount().getUsername().equals(username)) throw new RuntimeException("Không có quyền.");
         if (!"PENDING".equals(order.getStatus()) && !"CONFIRMED".equals(order.getStatus())) throw new RuntimeException("Không thể hủy.");
         
+        // Với đơn COD, khi khách hủy sẽ chuyển ngay sang Hủy Thành Công (CANCELLED)
         order.setStatus("CANCELLED");
         order.setNotes((order.getNotes() == null ? "" : order.getNotes()) + " | Lý do hủy: " + reason);
         
-        restoreProductStock(order);
+        restoreProductStock(order); // Trả lại tồn kho
         
         return orderRepository.save(order);
     }
 
     
-    /// --- HỦY ĐƠN HÀNG ĐÃ THANH TOÁN & GỬI MAIL YÊU CẦU HOÀN TIỀN CHO ADMIN ---
+    /// HỦY ĐƠN HÀNG ĐÃ THANH TOÁN (Bank) - Cần xin số tài khoản và gửi mail Yêu Cầu Hủy (Không hủy ngay lập tức)
     @Override
     @Transactional
     public void cancelPaidOrder(String username, Integer orderId, String reason, 
@@ -262,14 +280,16 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Đơn hàng đã được xử lý, không thể hủy.");
         }
 
-        order.setStatus("CANCELLED"); 
+        // Với đơn Bank, khi khách hủy phải đổi trạng thái thành Yêu cầu Hủy, chứ không Hủy luôn (để chờ Admin hoàn tiền)
+        // [QUAN TRỌNG]: TÔI ĐÃ SỬA LẠI THÀNH CANCEL_REQUESTED THAY VÌ CANCELLED
+        order.setStatus("CANCEL_REQUESTED"); 
         String refundInfo = String.format(" [Hủy & Hoàn tiền: %s | Bank: %s-%s-%s]", reason, bankName, accNo, accName);
         order.setNotes((order.getNotes() == null ? "" : order.getNotes()) + refundInfo);
         
-        restoreProductStock(order);
-        
+        //  Chưa restore tồn kho ở đây, vì đơn mới chỉ là "yêu cầu hủy". Khi nào Admin duyệt thì mới cộng kho!
         orderRepository.save(order);
 
+        // Gửi mail thông báo cho Admin
         StringBuilder productTable = new StringBuilder("<table style='width:100%; border-collapse: collapse; font-size: 14px;'>");
         productTable.append("<tr style='background: #f2f2f2;'><th>Sản phẩm</th><th>SL</th><th>Giá</th><th>Tổng</th></tr>");
         java.text.NumberFormat vnCurrency = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
@@ -303,6 +323,7 @@ public class OrderServiceImpl implements OrderService {
         mailService.sendEmailWithReturnRequest(subject, body, qrFile, null); 
     }
 
+    //  Khách hàng yêu cầu trả hàng thông thường (Không gửi ảnh qua form rút gọn)
     @Override
     @Transactional
     public Order requestReturn(String username, Integer orderId, String reason) {
@@ -317,15 +338,26 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.save(order);
     }
 
+    //Khách hàng Xóa Lịch sử mua hàng (Thực chất là Ẩn đi đối với User)
     @Override
     @Transactional
     public void hideOrder(String username, Integer orderId) {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("Đơn không tồn tại."));
         if (!order.getAccount().getUsername().equals(username)) throw new RuntimeException("Không có quyền.");
+        
+        //  CHẶN XÓA ĐƠN HÀNG ĐANG XỬ LÝ / YÊU CẦU HỦY
+        // Chỉ cho phép User xóa lịch sử các đơn hàng đã Hoàn Tất hoặc Đã Hủy Thành Công
+        if (!"COMPLETED".equals(order.getStatus()) && 
+            !"CANCELLED".equals(order.getStatus()) && 
+            !"CANCELLED_REFUNDED".equals(order.getStatus())) {
+            throw new RuntimeException("Bảo mật: Không được phép xóa đơn hàng đang trong trạng thái xử lý hoặc chờ duyệt hủy!");
+        }
+
         order.setStatus("HIDDEN");
         orderRepository.save(order);
     }
 
+    // Lấy lịch sử đơn hàng của 1 user
     @Override
     @Transactional(readOnly = true) 
     public List<OrderListDTO> findOrdersByUsername(String username) {
@@ -333,12 +365,14 @@ public class OrderServiceImpl implements OrderService {
                 .stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
+    // Lấy chi tiết đơn
     @Override
     @Transactional(readOnly = true)
     public Optional<Order> findById(Integer orderId) {
         return orderRepository.findByIdWithDetails(orderId);
     }
 
+    //  Admin đổi trạng thái đơn hàng
     @Override
     @Transactional
     public Order updateStatus(Integer orderId, String newStatus) {
@@ -347,7 +381,7 @@ public class OrderServiceImpl implements OrderService {
         String oldStatus = order.getStatus();
         String formattedNewStatus = newStatus.toUpperCase().trim();
         
-        // CỘNG KHO
+        // NẾU ADMIN DUYỆT HỦY (Chuyển sang CANCELLED) THÌ MỚI CỘNG LẠI TỒN KHO
         boolean isOldStatusNormal = !oldStatus.equals("CANCELLED") && !oldStatus.equals("CANCELLED_REFUNDED");
         boolean isNewStatusCancelled = formattedNewStatus.equals("CANCELLED");
         
@@ -355,7 +389,7 @@ public class OrderServiceImpl implements OrderService {
             restoreProductStock(order);
         }
         
-        // --- SET NGÀY GIAO HÀNG ---
+        // --- SET NGÀY GIAO HÀNG (Mốc đếm ngược 24h) ---
         if (!oldStatus.equals("DELIVERED") && formattedNewStatus.equals("DELIVERED")) {
             order.setDeliveryDate(new Date()); // Lưu giờ hiện tại khi Admin bấm giao thành công
         }
@@ -385,6 +419,7 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.save(order);
     }
 
+    // Báo cáo doanh thu tháng
     @Override
     public List<Double> getMonthlyRevenue(Integer year) {
         List<Double> revenueList = new ArrayList<>(Collections.nCopies(12, 0.0));
