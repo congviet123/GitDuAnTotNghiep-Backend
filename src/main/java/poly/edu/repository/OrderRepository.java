@@ -56,6 +56,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
            "(:status IS NULL OR o.status = :status) AND " +
            "(:method IS NULL OR o.paymentMethod LIKE CONCAT('%', :method, '%')) AND " + 
            
+           
            "(:start IS NULL OR o.createDate >= :start) AND " +
            "(:end IS NULL OR o.createDate <= :end) " +
            "ORDER BY o.createDate DESC")

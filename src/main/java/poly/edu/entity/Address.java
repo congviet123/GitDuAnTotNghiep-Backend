@@ -18,7 +18,7 @@ public class Address implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "fullname", columnDefinition = "nvarchar(100)")
     private String fullname;

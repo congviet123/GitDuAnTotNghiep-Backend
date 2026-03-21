@@ -10,15 +10,19 @@ import poly.edu.service.AddressService;
 
 import java.util.List;
 
-@CrossOrigin("*")
+@CrossOrigin("*") // Cho phép Frontend (VueJS chạy ở port 5173) gọi API thoải mái mà không bị chặn lỗi CORS
 @RestController
-@RequestMapping("/rest/addresses") // Đường dẫn API riêng cho địa chỉ
+@RequestMapping("/rest/addresses") // Đường dẫn gốc cho module quản lý sổ địa chỉ
 public class AddressRestController {
 
     @Autowired
     private AddressService addressService;
 
-    // Helper: Lấy username của người đang đăng nhập
+    /**
+     * [HÀM HỖ TRỢ]: Lấy tên đăng nhập (username) của người dùng đang thao tác
+     * Hoạt động: Chọc vào SecurityContext (Bộ nhớ bảo mật của Spring) để xem ai đang gọi API này.
+     * Trả về: Tên username (nếu đã đăng nhập), hoặc null (nếu là khách vãng lai).
+     */
     private String getCurrentUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
@@ -27,69 +31,91 @@ public class AddressRestController {
         return auth.getName();
     }
 
-    // 1. Lấy danh sách địa chỉ của tôi
+    /**
+     * [TÍNH NĂNG 1]: Lấy danh sách địa chỉ của tôi
+     * Phục vụ cho Frontend: Hàm fetchSavedAddresses() trong Giỏ hàng sẽ gọi API này
+     * để lấy danh sách địa chỉ, sau đó đổ dữ liệu vào các nút Radio cho khách chọn.
+     */
     @GetMapping
     public ResponseEntity<?> getMyAddresses() {
         String username = getCurrentUsername();
         if (username == null) {
-            return ResponseEntity.status(401).body("Vui lòng đăng nhập.");
+            return ResponseEntity.status(401).body("Vui lòng đăng nhập để xem sổ địa chỉ.");
         }
+        // Gọi Service tìm tất cả địa chỉ thuộc về username này
         return ResponseEntity.ok(addressService.findAllByUsername(username));
     }
 
-    // 2. Thêm địa chỉ mới
+    /**
+     * [TÍNH NĂNG 2]: Thêm địa chỉ mới
+     * Phục vụ cho Frontend: Khách hàng điền form thêm địa chỉ ở trang Profile cá nhân.
+     */
     @PostMapping
     public ResponseEntity<?> createAddress(@RequestBody Address address) {
         String username = getCurrentUsername();
         if (username == null) {
-            return ResponseEntity.status(401).body("Vui lòng đăng nhập.");
+            return ResponseEntity.status(401).body("Vui lòng đăng nhập để thêm địa chỉ.");
         }
         try {
+            // Gắn cứng username của người tạo vào địa chỉ này để bảo mật, tránh việc tạo hộ người khác
             return ResponseEntity.ok(addressService.create(username, address));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // 3. Cập nhật địa chỉ
+    /**
+     * [TÍNH NĂNG 3]: Cập nhật địa chỉ
+     * [ĐÃ FIX LỖI]: Đổi kiểu dữ liệu của 'id' từ Long sang Integer cho khớp với SQL Server
+     */
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateAddress(@PathVariable Long id, @RequestBody Address address) {
+    public ResponseEntity<?> updateAddress(@PathVariable Integer id, @RequestBody Address address) {
         String username = getCurrentUsername();
         if (username == null) {
-            return ResponseEntity.status(401).body("Vui lòng đăng nhập.");
+            return ResponseEntity.status(401).body("Vui lòng đăng nhập để cập nhật địa chỉ.");
         }
         try {
+            // Cập nhật địa chỉ dựa trên ID và bắt buộc phải thuộc sở hữu của username hiện tại
             return ResponseEntity.ok(addressService.update(username, id, address));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-    // 4. Xóa địa chỉ
+    /**
+     * [TÍNH NĂNG 4]: Xóa địa chỉ
+     * [ĐÃ FIX LỖI]: Đổi kiểu dữ liệu của 'id' từ Long sang Integer cho khớp với SQL Server
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAddress(@PathVariable Long id) {
+    public ResponseEntity<?> deleteAddress(@PathVariable Integer id) {
         String username = getCurrentUsername();
         if (username == null) {
-            return ResponseEntity.status(401).body("Vui lòng đăng nhập.");
+            return ResponseEntity.status(401).body("Vui lòng đăng nhập để xóa địa chỉ.");
         }
         try {
+            // Xóa địa chỉ dựa trên ID (Service sẽ tự kiểm tra xem địa chỉ này có đúng của user đó không)
             addressService.delete(username, id);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.ok().build(); // Xóa thành công trả về mã 200 OK
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
     
-    // 5. Lấy chi tiết 1 địa chỉ (dùng khi sửa)
+    /**
+     * [TÍNH NĂNG 5]: Lấy chi tiết 1 địa chỉ (Dùng khi khách bấm nút "Sửa" trên giao diện Profile)
+     * [ĐÃ FIX LỖI]: Đổi kiểu dữ liệu của 'id' từ Long sang Integer cho khớp với SQL Server
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<?> getAddressDetail(@PathVariable Long id) {
+    public ResponseEntity<?> getAddressDetail(@PathVariable Integer id) {
         String username = getCurrentUsername();
         if (username == null) return ResponseEntity.status(401).build();
         
         Address addr = addressService.findById(id);
-        if (addr != null && addr.getUser().getUsername().equals(username)) {
+        
+        // Bảo mật: Nếu địa chỉ tồn tại và tên chủ sở hữu địa chỉ trùng với tên người đang đăng nhập thì mới trả về dữ liệu
+        if (addr != null && addr.getUser() != null && addr.getUser().getUsername().equals(username)) {
             return ResponseEntity.ok(addr);
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.notFound().build(); // Nếu không phải của mình hoặc không tồn tại thì trả về 404
     }
 }
