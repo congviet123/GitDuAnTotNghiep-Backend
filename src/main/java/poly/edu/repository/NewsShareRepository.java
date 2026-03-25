@@ -8,4 +8,5 @@ import poly.edu.entity.NewsShare;
 @Repository
 public interface NewsShareRepository extends JpaRepository<NewsShare, Long> {
 
+    Integer countNewsSharesByNews_Id(Long newsId);
 }
