@@ -25,6 +25,7 @@ import poly.edu.entity.dto.NewsResponseDTO;
 import poly.edu.entity.dto.NewsUpdateDTO;
 import poly.edu.repository.NewsLikeRepository;
 import poly.edu.repository.NewsRepository;
+import poly.edu.repository.NewsShareRepository;
 import poly.edu.repository.UserRepository;
 import poly.edu.service.NewsService;
 
@@ -38,6 +39,8 @@ public class NewsServiceImpl implements NewsService {
     private UserRepository userRepository;
     @Autowired
     private NewsLikeRepository newsLikeRepository;
+    @Autowired
+    private NewsShareRepository newsShareRepository;
 
     private final Path fileStorageLocation = Paths.get("target/classes/static/imgs").toAbsolutePath().normalize();
 
@@ -109,7 +112,7 @@ public class NewsServiceImpl implements NewsService {
         log.info("Fetching news with id: {}", id);
         News newsResponse = newsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("News not found with id: " + id));
-        log.info("Fetchingn news successfully");
+        log.info("Fetching news successfully");
         return NewsResponseDTO.builder()
                 .id(newsResponse.getId())
                 .title(newsResponse.getTitle())
@@ -122,6 +125,7 @@ public class NewsServiceImpl implements NewsService {
                 .likedByCurrentUser(newsLikeRepository.existsByNews_IdAndUser_Username(newsResponse.getId(),
                         newsResponse.getUser().getUsername()))
                 .productLink(newsResponse.getProductLink())
+                .shareCount(newsShareRepository.countNewsSharesByNews_Id(id))
                 .build();
     }
 

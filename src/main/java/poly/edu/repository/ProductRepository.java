@@ -98,4 +98,22 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
             @Param("maxDiscount") Integer maxDiscount, 
             Pageable pageable
     );
-}
+    // =================================================================================
+    // 4. DASHBOARD - TOP 3 SẢN PHẨM TỒN KHO NHIỀU NHẤT (THEO KG)    code mới của tuyến làm dosdboard
+    // =================================================================================
+    @Query(value = """
+    		SELECT TOP 3 p.name, s.quantity
+    		FROM Product_Stock_Monthly s
+    		JOIN Product p ON p.id = s.product_id
+    		WHERE s.year = :year
+    		AND (
+    		        :month = 'all'
+    		        OR s.month = TRY_CAST(:month AS INT)
+    		    )
+    		ORDER BY s.quantity DESC
+    		""", nativeQuery = true)
+    		List<Object[]> getTopStockProducts(int year, String month);
+	}
+
+
+	

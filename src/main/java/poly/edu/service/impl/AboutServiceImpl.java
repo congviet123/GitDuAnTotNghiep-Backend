@@ -24,16 +24,31 @@ public class AboutServiceImpl implements AboutService {
     private static final String ABOUT_SLUG = "gioi-thieu";
     
     @Override
-    @Transactional(readOnly = true)
+    @Transactional // Đổi sang @Transactional (xóa readOnly) để cho phép Update DB nếu cần chữa lành
     public AboutPageDTO getAboutPage() {
-        StaticPage staticPage = staticPageRepository.findBySlug(ABOUT_SLUG)
-                .orElseGet(() -> createDefaultAboutPage());
+        // 1. Tìm trang giới thiệu trong DB
+        StaticPage staticPage = staticPageRepository.findBySlug(ABOUT_SLUG).orElse(null);
         
+        // 2. Nếu chưa có trong DB, tạo mới hoàn toàn với dữ liệu mặc định chuẩn JSON
+        if (staticPage == null) {
+            return createAndSaveDefaultAboutPage();
+        }
+        
+        // 3. Nếu đã có DB, thử parse JSON
         try {
             return objectMapper.readValue(staticPage.getContent(), AboutPageDTO.class);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error parsing about page content: " + e.getMessage());
+            // 🔥 LOGIC TỰ ĐỘNG CHỮA LÀNH (SELF-HEALING) 🔥
+            // Phát hiện DB đang lưu HTML cũ hoặc định dạng sai, hệ thống sẽ tự động ghi đè lại bằng JSON chuẩn
+            System.out.println("⚠️ Cảnh báo: Dữ liệu DB cũ không phải JSON. Đang tự động cập nhật lại...");
+            AboutPageDTO defaultDto = buildDefaultAboutDTO();
+            try {
+                staticPage.setContent(objectMapper.writeValueAsString(defaultDto));
+                staticPageRepository.save(staticPage); // Ghi đè lại vào DB
+                return defaultDto;
+            } catch (Exception ex) {
+                throw new RuntimeException("Lỗi khi tự động chữa lành dữ liệu: " + ex.getMessage());
+            }
         }
     }
     
@@ -58,7 +73,8 @@ public class AboutServiceImpl implements AboutService {
         staticPageRepository.save(staticPage);
     }
     
-    private StaticPage createDefaultAboutPage() {
+    // Tách riêng logic tạo Data mặc định để tái sử dụng
+    private AboutPageDTO buildDefaultAboutDTO() {
         AboutPageDTO defaultAbout = new AboutPageDTO();
         
         // Banner defaults
@@ -104,6 +120,13 @@ public class AboutServiceImpl implements AboutService {
         partners.add(createPartner("BALIRESORT", "/imgs/no-image.png"));
         defaultAbout.setPartners(partners);
         
+        return defaultAbout;
+    }
+
+    // Hàm gọi tạo và lưu trực tiếp Data mặc định vào DB
+    private AboutPageDTO createAndSaveDefaultAboutPage() {
+        AboutPageDTO defaultAbout = buildDefaultAboutDTO();
+        
         StaticPage staticPage = new StaticPage();
         staticPage.setSlug(ABOUT_SLUG);
         staticPage.setTitle(defaultAbout.getBannerTitle());
@@ -116,7 +139,8 @@ public class AboutServiceImpl implements AboutService {
             throw new RuntimeException("Error creating default about page: " + e.getMessage());
         }
         
-        return staticPageRepository.save(staticPage);
+        staticPageRepository.save(staticPage);
+        return defaultAbout;
     }
     
     private AboutPageDTO.FeatureDTO createFeature(String title, String desc, String icon) {

@@ -10,7 +10,7 @@ import poly.edu.entity.Address;
 import java.util.List;
 
 @Repository
-public interface AddressRepository extends JpaRepository<Address, Long> {
+public interface AddressRepository extends JpaRepository<Address, Integer> {
     
     // Tìm danh sách địa chỉ theo username
     // Lưu ý: Trong Entity Address đặt tên biến là 'user' thì ở đây dùng 'User_Username'
