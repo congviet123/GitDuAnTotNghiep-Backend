@@ -59,6 +59,12 @@ public interface OrderService {
      */
     void hideOrder(String username, Integer orderId);
 
+    // ========== THÊM VÀO ĐÂY ==========
+    /**
+     * Đếm số lần user đã sử dụng voucher (không tính đơn đã hủy)
+     */
+    int countUserVoucherUsage(String username, String voucherCode);
+    // ========== KẾT THÚC THÊM ==========
     
     
     // 2. PHƯƠNG THỨC DÀNH CHO QUẢN TRỊ VIÊN (ADMIN)

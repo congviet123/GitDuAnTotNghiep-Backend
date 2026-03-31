@@ -30,4 +30,8 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     @Query("SELECT u FROM User u WHERE u.role.name IN ('ROLE_ADMIN', 'ROLE_STAFF')")
     List<User> findAllAdmins();
+ // ========== THÊM: Lấy danh sách user theo role ==========
+    @Query("SELECT u FROM User u WHERE u.role.name = :roleName")
+    List<User> findByRole_Name(@org.springframework.data.repository.query.Param("roleName") String roleName);
+    // ========== KẾT THÚC THÊM ==========
 }

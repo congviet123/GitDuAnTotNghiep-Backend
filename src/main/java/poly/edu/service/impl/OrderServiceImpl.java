@@ -10,6 +10,7 @@ import poly.edu.entity.Order;
 import poly.edu.entity.OrderDetail;
 import poly.edu.entity.Product;
 import poly.edu.entity.User;
+import poly.edu.entity.Voucher;
 import poly.edu.entity.dto.OrderCreateDTO;
 import poly.edu.entity.dto.OrderListDTO;
 import poly.edu.repository.CartRepository;
@@ -17,10 +18,10 @@ import poly.edu.repository.OrderDetailRepository;
 import poly.edu.repository.OrderRepository;
 import poly.edu.repository.ProductRepository;
 import poly.edu.repository.UserRepository;
+import poly.edu.repository.VoucherRepository;
 import poly.edu.service.MailService;
 import poly.edu.service.OrderService;
 import poly.edu.service.ShoppingCartService;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ public class OrderServiceImpl implements OrderService {
     @Autowired private ShoppingCartService cartService;
     @Autowired private CartRepository cartRepository;
     @Autowired private MailService mailService;
+    @Autowired private VoucherRepository voucherRepository;
     
     private OrderListDTO mapToDto(Order order) {
         OrderListDTO dto = new OrderListDTO();
@@ -78,6 +80,37 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("Đã quá 24h kể từ khi giao hàng. Không thể yêu cầu hoàn trả.");
         }
     }
+    
+    // ========== HÀM ĐẾM SỐ LẦN USER ĐÃ DÙNG VOUCHER (PRIVATE) ==========
+    private int countUserVoucherUsagePrivate(String username, String voucherCode) {
+        int count = 0;
+        List<Order> userOrders = orderRepository.findByAccountUsernameOrderByCreateDateDesc(username);
+        
+        // ========== LOG DEBUG ==========
+        System.out.println("========== KIỂM TRA SỐ LẦN DÙNG VOUCHER ==========");
+        System.out.println("User: " + username);
+        System.out.println("Voucher: " + voucherCode);
+        System.out.println("Tổng số đơn của user: " + userOrders.size());
+        // ================================
+        
+        for (Order order : userOrders) {
+            System.out.println("  - Đơn #" + order.getId() + ": voucher=" + order.getVoucherCode() + ", status=" + order.getStatus());
+            
+            if (voucherCode.equals(order.getVoucherCode())) {
+                String status = order.getStatus();
+                // KHÔNG TÍNH CÁC ĐƠN ĐÃ HỦY
+                if (!"CANCELLED".equals(status) && !"CANCELLED_REFUNDED".equals(status)) {
+                    count++;
+                    System.out.println("    -> TÍNH (lần thứ " + count + ")");
+                } else {
+                    System.out.println("    -> KHÔNG TÍNH (đơn đã hủy)");
+                }
+            }
+        }
+        System.out.println("Kết quả: User đã dùng " + count + " lần");
+        return count;
+    }
+    // ========== KẾT THÚC ==========
 
     // =========================================================================
     // TỰ ĐỘNG CHUYỂN TRẠNG THÁI "HOÀN TẤT ĐƠN" SAU 24H GIAO HÀNG
@@ -118,10 +151,11 @@ public class OrderServiceImpl implements OrderService {
         User user = userRepository.findById(username)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại."));
         
-        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal subtotal = BigDecimal.ZERO;
         List<OrderDetail> details = new ArrayList<>();
         List<Integer> cartIdsToDelete = new ArrayList<>();
 
+        // ========== TÍNH TỔNG TIỀN HÀNG ==========
         for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
             
             Product product = productRepository.findById(item.getProductId())
@@ -140,7 +174,7 @@ public class OrderServiceImpl implements OrderService {
             productRepository.save(product);
 
             BigDecimal lineTotal = product.getPrice().multiply(buyQuantity);
-            totalAmount = totalAmount.add(lineTotal);
+            subtotal = subtotal.add(lineTotal);
             
             OrderDetail detail = new OrderDetail();
             detail.setQuantity(buyQuantity); 
@@ -152,6 +186,79 @@ public class OrderServiceImpl implements OrderService {
             cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 
+        // ==================== ÁP DỤNG VOUCHER ====================
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        String appliedVoucherCode = null;
+        
+        if (orderDTO.getVoucherCode() != null && !orderDTO.getVoucherCode().trim().isEmpty()) {
+            String voucherCode = orderDTO.getVoucherCode().toUpperCase().trim();
+            Optional<Voucher> voucherOpt = voucherRepository.findByCode(voucherCode);
+            
+            if (voucherOpt.isPresent()) {
+                Voucher voucher = voucherOpt.get();
+                LocalDateTime now = LocalDateTime.now();
+                
+                // Kiểm tra voucher còn hiệu lực
+                boolean isValid = voucher.getActive() && 
+                                  voucher.getStartDate() != null && voucher.getStartDate().isBefore(now) &&
+                                  voucher.getEndDate() != null && voucher.getEndDate().isAfter(now) &&
+                                  voucher.getVisibility(); // Chỉ voucher công khai mới áp dụng
+                                  
+                // Kiểm tra số lượng còn
+                if (voucher.getQuantity() > 0 && voucher.getUsedCount() >= voucher.getQuantity()) {
+                    isValid = false;
+                    throw new RuntimeException("Voucher đã hết số lượng sử dụng!");
+                }
+                
+                // ========== KIỂM TRA GIỚI HẠN MỖI NGƯỜI DÙNG ==========
+                if (voucher.getPerUserLimit() != null && voucher.getPerUserLimit() > 0) {
+                    int userUsageCount = countUserVoucherUsagePrivate(username, voucherCode);
+                    System.out.println(">>> perUserLimit = " + voucher.getPerUserLimit() + ", userUsageCount = " + userUsageCount);
+                    if (userUsageCount >= voucher.getPerUserLimit()) {
+                        throw new RuntimeException("Bạn đã sử dụng voucher này " + userUsageCount + " lần. Giới hạn mỗi người chỉ " + voucher.getPerUserLimit() + " lần!");
+                    }
+                }
+                // ========== KẾT THÚC ==========
+                
+                // Kiểm tra điều kiện đơn hàng tối thiểu
+                if (voucher.getMinCondition().compareTo(subtotal) > 0) {
+                    throw new RuntimeException("Đơn hàng tối thiểu " + formatPrice(voucher.getMinCondition()) + " mới được áp dụng!");
+                }
+                
+                if (isValid) {
+                    appliedVoucherCode = voucherCode;
+                    
+                    // Tính số tiền giảm
+                    if (voucher.getDiscountPercent() != null && voucher.getDiscountPercent() > 0) {
+                        // Giảm theo phần trăm
+                        BigDecimal percent = BigDecimal.valueOf(voucher.getDiscountPercent());
+                        discountAmount = subtotal.multiply(percent).divide(BigDecimal.valueOf(100));
+                        
+                        // Kiểm tra giảm tối đa
+                        if (voucher.getMaxDiscountAmount() != null && voucher.getMaxDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+                            if (discountAmount.compareTo(voucher.getMaxDiscountAmount()) > 0) {
+                                discountAmount = voucher.getMaxDiscountAmount();
+                            }
+                        }
+                    } else if (voucher.getDiscountAmount() != null && voucher.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+                        // Giảm theo số tiền cố định
+                        discountAmount = voucher.getDiscountAmount();
+                        if (discountAmount.compareTo(subtotal) > 0) {
+                            discountAmount = subtotal;
+                        }
+                    }
+                } else {
+                    throw new RuntimeException("Voucher không hợp lệ hoặc đã hết hạn!");
+                }
+            } else {
+                throw new RuntimeException("Mã voucher không tồn tại!");
+            }
+        }
+        
+        BigDecimal totalAmount = subtotal.subtract(discountAmount);
+        if (totalAmount.compareTo(BigDecimal.ZERO) < 0) totalAmount = BigDecimal.ZERO;
+        // =========================================================
+
         Order order = new Order();
         order.setAccount(user);
         order.setShippingAddress(orderDTO.getShippingAddress());
@@ -159,6 +266,7 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(totalAmount);
         order.setPaymentMethod(orderDTO.getPaymentMethod());
         order.setStatus("PENDING");
+        order.setVoucherCode(appliedVoucherCode); // Lưu mã voucher đã dùng
         
         Order savedOrder = orderRepository.save(order);
         for (OrderDetail detail : details) {
@@ -166,11 +274,24 @@ public class OrderServiceImpl implements OrderService {
             orderDetailRepository.save(detail);
         }
         
+        // Cập nhật used_count của voucher
+        if (appliedVoucherCode != null) {
+            voucherRepository.findByCode(appliedVoucherCode).ifPresent(voucher -> {
+                voucher.setUsedCount(voucher.getUsedCount() + 1);
+                voucherRepository.save(voucher);
+            });
+        }
+        
         for (Integer cartId : cartIdsToDelete) {
             cartService.remove(cartId);
         }
         
         return savedOrder;
+    }
+
+    // ==================== HÀM HỖ TRỢ FORMAT TIỀN ====================
+    private String formatPrice(BigDecimal price) {
+        return new java.text.DecimalFormat("#,###").format(price) + "đ";
     }
 
     /// --- YÊU CẦU HOÀN TRẢ ĐƠN HÀNG ĐÃ GIAO (CÓ GỬI MAIL CHO ADMIN) ---
@@ -199,7 +320,7 @@ public class OrderServiceImpl implements OrderService {
         orderRepository.save(order);
 
         StringBuilder productTable = new StringBuilder("<table style='width:100%; border-collapse: collapse; font-size: 14px;'>");
-        productTable.append("<tr style='background: #f2f2f2;'><th>Sản phẩm</th><th>SL</th><th>Giá</th><th>Tổng</th></tr>");
+        productTable.append("<tr style='background: #f2f2f2;'><th>Sản phẩm</th><th>SL</th><th>Giá</th><th>Tổng</th>");
         java.text.NumberFormat vnCurrency = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("vi", "VN"));
 
         for (OrderDetail d : order.getOrderDetails()) {
@@ -403,4 +524,11 @@ public class OrderServiceImpl implements OrderService {
     @Override public List<OrderListDTO> findAllOrders() { 
         return orderRepository.findAllOrdersSimple().stream().map(this::mapToDto).collect(Collectors.toList());
     }
+    
+    // ========== IMPLEMENT METHOD TỪ INTERFACE ==========
+    @Override
+    public int countUserVoucherUsage(String username, String voucherCode) {
+        return countUserVoucherUsagePrivate(username, voucherCode);
+    }
+    // ========== KẾT THÚC ==========
 }

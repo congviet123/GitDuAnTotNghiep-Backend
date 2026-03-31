@@ -472,6 +472,23 @@ public class ClientRestController {
         }
     }
     
+ // ========== THÊM VÀO ĐÂY ==========
+ // Kiểm tra số lần user đã sử dụng voucher
+    @GetMapping("/orders/check-voucher-usage/{voucherCode}")
+    public ResponseEntity<Integer> checkUserVoucherUsage(@PathVariable String voucherCode) {
+        try {
+            String username = validateAndGetUsername();
+            if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(0);
+            
+            int usageCount = orderService.countUserVoucherUsage(username, voucherCode);
+            return ResponseEntity.ok(usageCount);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(0);
+        }
+    }
+    // ========== KẾT THÚC THÊM ==========
+
+    
     @GetMapping("/users/admins")
     public ResponseEntity<List<Map<String, String>>> getAdminList() {
         try {
