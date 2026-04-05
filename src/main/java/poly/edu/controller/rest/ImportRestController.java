@@ -2,6 +2,7 @@ package poly.edu.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import poly.edu.entity.Import;
 import poly.edu.entity.dto.ImportDTO;
@@ -14,13 +15,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/rest/api/imports")
 @CrossOrigin("*")
-
 public class ImportRestController {
 
     @Autowired
     ImportService importService;
 
-    // 🔍 Tìm kiếm + load danh sách
+    // ========== THÊM: Chỉ ADMIN và STAFF mới tìm kiếm được phiếu nhập ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping
     public List<Import> search(
             @RequestParam(required = false) String keyword,
@@ -32,17 +33,22 @@ public class ImportRestController {
         return importService.search(keyword, startDate, endDate);
     }
 
-    // ➕ Tạo phiếu nhập
+    // ========== THÊM: Chỉ ADMIN và STAFF mới tạo được phiếu nhập ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping
     public Import create(@RequestBody ImportDTO dto) {
         return importService.create(dto);
     }
 
-    // 👁 Chi tiết
+    // ========== THÊM: Chỉ ADMIN và STAFF mới xem chi tiết phiếu nhập ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/{id}")
     public Import detail(@PathVariable Integer id) {
         return importService.findById(id);
     }
+    
+    // ========== THÊM: Chỉ ADMIN và STAFF mới xóa được phiếu nhập ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Integer id) {
         importService.delete(id);

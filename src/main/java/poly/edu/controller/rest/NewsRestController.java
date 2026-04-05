@@ -53,7 +53,8 @@ public class NewsRestController {
         }
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    // ========== THÊM: Cho phép ADMIN và STAFF tạo tin tức ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<?> createNews(
             @RequestPart("news") @Valid NewsCreateDTO news,
@@ -67,7 +68,8 @@ public class NewsRestController {
         }
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    // ========== THÊM: Cho phép ADMIN và STAFF cập nhật tin tức ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping(path = "/{id}", consumes = "multipart/form-data")
     public ResponseEntity<?> updateNews(@Valid @PathVariable Long id, @RequestPart("news") @Valid NewsUpdateDTO news,
                                         @RequestPart(value = "newsImage", required = false) MultipartFile newsImage) {
@@ -78,7 +80,8 @@ public class NewsRestController {
         }
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    // ========== THÊM: Cho phép ADMIN và STAFF xóa tin tức ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteNews(@PathVariable Long id) {
         try {

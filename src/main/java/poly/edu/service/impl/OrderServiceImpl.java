@@ -158,11 +158,10 @@ public class OrderServiceImpl implements OrderService {
         List<OrderDetail> details = new ArrayList<>();
         List<Integer> cartIdsToDelete = new ArrayList<>();
 
-<<<<<<< HEAD
+
         // ========== TÍNH TỔNG TIỀN HÀNG ==========
-=======
+
         // Duyệt qua từng sản phẩm mà khách đặt mua
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
         for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
             
             Product product = productRepository.findById(item.getProductId())
@@ -197,7 +196,7 @@ public class OrderServiceImpl implements OrderService {
             cartItem.ifPresent(cart -> cartIdsToDelete.add(cart.getId()));
         }
 
-<<<<<<< HEAD
+
         // ==================== ÁP DỤNG VOUCHER ====================
         BigDecimal discountAmount = BigDecimal.ZERO;
         String appliedVoucherCode = null;
@@ -271,21 +270,17 @@ public class OrderServiceImpl implements OrderService {
         if (totalAmount.compareTo(BigDecimal.ZERO) < 0) totalAmount = BigDecimal.ZERO;
         // =========================================================
 
-=======
+
         // Tạo Đơn hàng lưu DB
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
         Order order = new Order();
         order.setAccount(user);
         order.setShippingAddress(orderDTO.getShippingAddress());
         order.setNotes(orderDTO.getNotes());
         order.setTotalAmount(totalAmount);
         order.setPaymentMethod(orderDTO.getPaymentMethod());
-<<<<<<< HEAD
         order.setStatus("PENDING");
         order.setVoucherCode(appliedVoucherCode); // Lưu mã voucher đã dùng
-=======
-        order.setStatus("PENDING"); // Đơn mới luôn ở trạng thái Chờ xử lý
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
+
         
         Order savedOrder = orderRepository.save(order);
         
@@ -295,7 +290,7 @@ public class OrderServiceImpl implements OrderService {
             orderDetailRepository.save(detail);
         }
         
-<<<<<<< HEAD
+
         // Cập nhật used_count của voucher
         if (appliedVoucherCode != null) {
             voucherRepository.findByCode(appliedVoucherCode).ifPresent(voucher -> {
@@ -304,9 +299,8 @@ public class OrderServiceImpl implements OrderService {
             });
         }
         
-=======
+
         // Xóa giỏ hàng
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
         for (Integer cartId : cartIdsToDelete) {
             cartService.remove(cartId);
         }
@@ -314,16 +308,15 @@ public class OrderServiceImpl implements OrderService {
         return savedOrder;
     }
 
-<<<<<<< HEAD
+
     // ==================== HÀM HỖ TRỢ FORMAT TIỀN ====================
     private String formatPrice(BigDecimal price) {
         return new java.text.DecimalFormat("#,###").format(price) + "đ";
     }
 
     /// --- YÊU CẦU HOÀN TRẢ ĐƠN HÀNG ĐÃ GIAO (CÓ GỬI MAIL CHO ADMIN) ---
-=======
+
     ///  Khách hàng yêu cầu hoàn trả đơn (Có gắn ảnh, QR code và gửi email thông báo cho Admin)
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
     @Override
     @Transactional
     public void requestReturnFull(String username, Integer orderId, 
@@ -576,7 +569,7 @@ public class OrderServiceImpl implements OrderService {
     @Override public List<OrderListDTO> findAllOrders() { 
         return orderRepository.findAllOrdersSimple().stream().map(this::mapToDto).collect(Collectors.toList());
     }
-<<<<<<< HEAD
+
     
     // ========== IMPLEMENT METHOD TỪ INTERFACE ==========
     @Override
@@ -584,6 +577,6 @@ public class OrderServiceImpl implements OrderService {
         return countUserVoucherUsagePrivate(username, voucherCode);
     }
     // ========== KẾT THÚC ==========
-=======
->>>>>>> 636de9a5fdf77e1e9260bbc89f52d838b9686c79
+
+
 }

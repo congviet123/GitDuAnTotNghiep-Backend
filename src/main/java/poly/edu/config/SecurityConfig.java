@@ -122,7 +122,7 @@ public class SecurityConfig {
                 .requestMatchers("/imgs/**", "/css/**", "/js/**", "/static/**", "/error").permitAll()
                 .requestMatchers("/rest/account/register", "/rest/account/register-google").permitAll() // Thêm quyền cho API mới
                 .requestMatchers("/rest/client/**", "/rest/auth/**").permitAll()
-                .requestMatchers("/rest/admin/**").hasAnyRole("ADMIN", "DIRE", "STAF")
+                .requestMatchers("/rest/admin/**").hasAnyRole("ADMIN", "DIRE", "STAFF", "SHIPPER")
                 .requestMatchers("/rest/account/**", "/rest/orders/**", "/rest/cart/**", "/rest/reviews/**")
                 .hasAnyRole("USER", "ADMIN", "DIRE", "STAF", "CUST")
                 .anyRequest().permitAll()

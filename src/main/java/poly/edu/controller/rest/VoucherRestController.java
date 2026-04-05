@@ -9,6 +9,7 @@ import poly.edu.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,25 +32,28 @@ public class VoucherRestController {
     @Autowired
     private UserRepository userRepository;
     
-    // Lấy tất cả voucher
+    // Lấy tất cả voucher - ADMIN và STAFF đều xem được
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping
     public ResponseEntity<List<VoucherDTO>> getAll() {
         return ResponseEntity.ok(voucherService.findAll());
     }
     
     // Lấy voucher đang hoạt động
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/active")
     public ResponseEntity<List<VoucherDTO>> getActive() {
         return ResponseEntity.ok(voucherService.findActiveVouchers());
     }
     
-    // Lấy voucher công khai đang hoạt động (cho khách hàng)
+    // Lấy voucher công khai đang hoạt động (cho khách hàng) - PUBLIC
     @GetMapping("/public")
     public ResponseEntity<List<VoucherDTO>> getPublicActive() {
         return ResponseEntity.ok(voucherService.findPublicActiveVouchers());
     }
     
     // Lấy voucher theo mã
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/{code}")
     public ResponseEntity<VoucherDTO> getByCode(@PathVariable String code) {
         return voucherService.findByCode(code)
@@ -57,7 +61,7 @@ public class VoucherRestController {
                 .orElse(ResponseEntity.notFound().build());
     }
     
-    // ========== THÊM MỚI: Kiểm tra voucher công khai (cho khách hàng áp dụng) ==========
+    // Kiểm tra voucher công khai (cho khách hàng áp dụng) - PUBLIC
     @GetMapping("/public/{code}")
     public ResponseEntity<?> checkPublicVoucher(@PathVariable String code) {
         java.util.Optional<VoucherDTO> voucherOpt = voucherService.findByCode(code.toUpperCase());
@@ -68,17 +72,14 @@ public class VoucherRestController {
         
         VoucherDTO voucher = voucherOpt.get();
         
-        // Kiểm tra voucher có công khai không
         if (!"public".equals(voucher.getVisibility())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Mã voucher không hợp lệ!");
         }
         
-        // Kiểm tra trạng thái
         if (!"published".equals(voucher.getStatus())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Voucher chưa được kích hoạt!");
         }
         
-        // Kiểm tra ngày hiệu lực
         LocalDate today = LocalDate.now();
         if (today.isBefore(voucher.getStartDate())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -89,7 +90,6 @@ public class VoucherRestController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Voucher đã hết hạn!");
         }
         
-        // Kiểm tra số lượng còn
         if (voucher.getUsageLimit() != null && voucher.getUsageLimit() > 0 
             && voucher.getUsedCount() != null && voucher.getUsedCount() >= voucher.getUsageLimit()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Voucher đã hết số lượng sử dụng!");
@@ -97,13 +97,12 @@ public class VoucherRestController {
         
         return ResponseEntity.ok(voucher);
     }
-    // ========== KẾT THÚC THÊM MỚI ==========
     
-    // ========== THÊM MỚI: Gửi email voucher ==========
+    // Gửi email voucher
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping("/send-email")
     public ResponseEntity<?> sendVoucherEmail(@RequestBody VoucherEmailDTO request) {
         try {
-            // Lấy thông tin voucher
             VoucherDTO voucher = voucherService.findByCode(request.getVoucherCode())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy voucher!"));
             
@@ -117,7 +116,6 @@ public class VoucherRestController {
             List<String> targetEmails = new ArrayList<>();
             
             if ("all".equals(request.getSendType())) {
-                // Lấy tất cả user có vai trò USER
                 List<User> users = userRepository.findByRole_Name("ROLE_USER");
                 targetEmails = users.stream()
                         .map(User::getEmail)
@@ -131,7 +129,6 @@ public class VoucherRestController {
                 return ResponseEntity.badRequest().body("Không có email nào để gửi!");
             }
             
-            // Gửi email cho từng người
             int successCount = 0;
             for (String email : targetEmails) {
                 try {
@@ -148,15 +145,16 @@ public class VoucherRestController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-    // ========== KẾT THÚC THÊM MỚI ==========
     
     // Kiểm tra mã tồn tại
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/check/{code}")
     public ResponseEntity<Boolean> checkCode(@PathVariable String code) {
         return ResponseEntity.ok(voucherService.existsByCode(code));
     }
     
     // Tạo voucher mới
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping
     public ResponseEntity<?> create(@RequestBody VoucherDTO voucherDTO) {
         try {
@@ -168,6 +166,7 @@ public class VoucherRestController {
     }
     
     // Cập nhật voucher
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping("/{code}")
     public ResponseEntity<?> update(@PathVariable String code, @RequestBody VoucherDTO voucherDTO) {
         try {
@@ -178,7 +177,8 @@ public class VoucherRestController {
         }
     }
     
-    // Xóa voucher
+    // ========== THÊM: Xóa voucher - Chỉ ADMIN và STAFF mới được xóa ==========
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/{code}")
     public ResponseEntity<Void> delete(@PathVariable String code) {
         try {
