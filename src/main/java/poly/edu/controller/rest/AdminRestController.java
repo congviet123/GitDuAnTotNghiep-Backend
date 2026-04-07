@@ -1,4 +1,3 @@
-//API REST cho chức năng quản trị hệ thống
 package poly.edu.controller.rest;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -147,9 +146,13 @@ public class AdminRestController {
     // 3. QUẢN LÝ NGƯỜI DÙNG 
     // ======================================================================
     
+    //  API lấy danh sách User có nhận tham số tìm kiếm 
     @GetMapping("/users")
-    public List<UserListDTO> getAllUsers() { 
-        return userService.findAllForAdminList(); 
+    public ResponseEntity<List<UserListDTO>> getAllUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean status) {
+        return ResponseEntity.ok(userService.findAllForAdminList(keyword, role, status));
     }
 
     @GetMapping("/users/{username}")

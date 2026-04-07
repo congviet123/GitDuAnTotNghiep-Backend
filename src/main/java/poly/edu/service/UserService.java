@@ -24,7 +24,9 @@ public interface UserService {
     User update(User user);
     void delete(String username);
     
-    List<UserListDTO> findAllForAdminList();
+    // NÂNG CẤP: Cập nhật tham số bộ lọc 
+    List<UserListDTO> findAllForAdminList(String keyword, String role, Boolean status);
+    // ========== KẾT THÚC NÂNG CẤP ==========
 
     // --- Functional Methods (Client) ---
     
