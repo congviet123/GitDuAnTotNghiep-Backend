@@ -160,6 +160,10 @@ public class OrderServiceImpl implements OrderService {
 
 
         // ========== TÍNH TỔNG TIỀN HÀNG ==========
+<<<<<<< HEAD
+
+=======
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
         // Duyệt qua từng sản phẩm mà khách đặt mua
         for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
             
@@ -279,6 +283,10 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentMethod(orderDTO.getPaymentMethod());
         order.setStatus("PENDING");
         order.setVoucherCode(appliedVoucherCode); // Lưu mã voucher đã dùng
+<<<<<<< HEAD
+
+=======
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
         
         Order savedOrder = orderRepository.save(order);
         
@@ -288,6 +296,10 @@ public class OrderServiceImpl implements OrderService {
             orderDetailRepository.save(detail);
         }
         
+<<<<<<< HEAD
+
+=======
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
         // Cập nhật used_count của voucher
         if (appliedVoucherCode != null) {
             voucherRepository.findByCode(appliedVoucherCode).ifPresent(voucher -> {
@@ -296,7 +308,12 @@ public class OrderServiceImpl implements OrderService {
             });
         }
         
+<<<<<<< HEAD
+
+        // Xóa giỏ hàng
+=======
         // Xóa giỏ hàng của user sau khi đặt hàng thành công
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
         for (Integer cartId : cartIdsToDelete) {
             cartService.remove(cartId);
         }
@@ -311,6 +328,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /// --- YÊU CẦU HOÀN TRẢ ĐƠN HÀNG ĐÃ GIAO (CÓ GỬI MAIL CHO ADMIN) ---
+<<<<<<< HEAD
+
+=======
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
     ///  Khách hàng yêu cầu hoàn trả đơn (Có gắn ảnh, QR code và gửi email thông báo cho Admin)
     @Override
     @Transactional
@@ -573,4 +594,8 @@ public class OrderServiceImpl implements OrderService {
     }
     // ========== KẾT THÚC ==========
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> cdf00652cff9dd356633a7468373e132547e5d03
 }

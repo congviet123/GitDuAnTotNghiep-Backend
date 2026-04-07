@@ -7,6 +7,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize; // THÊM: Import cho phân quyền
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,6 +48,8 @@ public class AdminRestController {
     // ======================================================================
     // 1. QUẢN LÝ SẢN PHẨM
     // ======================================================================
+    // THÊM: Chỉ Admin và Staff mới được quản lý sản phẩm
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/products")
     public ResponseEntity<?> getAllProducts(
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -70,11 +73,15 @@ public class AdminRestController {
         }
     }
 
+    // THÊM: Chỉ Admin và Staff mới được xem chi tiết sản phẩm
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/products/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable("id") Integer id) {
         return productService.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
+    // THÊM: Chỉ Admin và Staff mới được tạo sản phẩm
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping(value = "/products", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     public ResponseEntity<?> createProduct(@RequestPart("product") Product product, @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
         try {
@@ -85,6 +92,8 @@ public class AdminRestController {
         }
     }
 
+    // THÊM: Chỉ Admin và Staff mới được cập nhật sản phẩm
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping(value = "/products/{id}", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
     public ResponseEntity<?> updateProduct(@PathVariable("id") Integer id, @RequestPart("product") Product product, @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
         if (!id.equals(product.getId())) return ResponseEntity.badRequest().body("ID không khớp.");
@@ -96,6 +105,8 @@ public class AdminRestController {
         }
     }
 
+    // THÊM: Chỉ Admin và Staff mới được xóa sản phẩm
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/products/{id}")
     public ResponseEntity<?> deleteProduct(@PathVariable("id") Integer id) {
         try {
@@ -119,23 +130,28 @@ public class AdminRestController {
     // ======================================================================
     // 2. QUẢN LÝ DANH MỤC 
     // ======================================================================
+    // THÊM: Chỉ Admin và Staff mới được quản lý danh mục
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/categories")
     public ResponseEntity<List<Category>> getAllCategories() {
         return ResponseEntity.ok(categoryService.findAll());
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping("/categories")
     public ResponseEntity<?> createCategory(@RequestBody Category category) {
         try { return ResponseEntity.status(HttpStatus.CREATED).body(categoryService.create(category)); }
         catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping("/categories/{id}")
     public ResponseEntity<?> updateCategory(@PathVariable("id") Integer id, @RequestBody Category category) {
         try { category.setId(id); return ResponseEntity.ok(categoryService.update(category)); }
         catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/categories/{id}")
     public ResponseEntity<?> deleteCategory(@PathVariable("id") Integer id) {
         try { categoryService.delete(id); return ResponseEntity.ok().body("Xóa thành công: " + id); }
@@ -145,8 +161,13 @@ public class AdminRestController {
     // ======================================================================
     // 3. QUẢN LÝ NGƯỜI DÙNG 
     // ======================================================================
+<<<<<<< HEAD
     
     //  API lấy danh sách User có nhận tham số tìm kiếm 
+=======
+    // THÊM: Chỉ Admin và Staff mới được quản lý người dùng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+>>>>>>> 885c037581597d70fbab6d55a30f25b605ee48af
     @GetMapping("/users")
     public ResponseEntity<List<UserListDTO>> getAllUsers(
             @RequestParam(required = false) String keyword,
@@ -155,6 +176,7 @@ public class AdminRestController {
         return ResponseEntity.ok(userService.findAllForAdminList(keyword, role, status));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/users/{username}")
     public ResponseEntity<?> getUserByUsername(@PathVariable("username") String username) {
         try {
@@ -164,11 +186,13 @@ public class AdminRestController {
         } catch (UsernameNotFoundException e) { return ResponseEntity.notFound().build(); }
     }
     
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/roles")
     public ResponseEntity<List<Role>> getAllRoles() {
         return ResponseEntity.ok(roleRepository.findAll());
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PostMapping("/users")
     public ResponseEntity<?> createUser(@RequestBody User user) {
         try {
@@ -179,6 +203,7 @@ public class AdminRestController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping("/users/{username}")
     public ResponseEntity<?> updateUser(@PathVariable("username") String username, @RequestBody User user) {
         if (!username.equals(user.getUsername())) {
@@ -192,6 +217,7 @@ public class AdminRestController {
         }
     }
     
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/users/{username}")
     public ResponseEntity<?> deleteUser(@PathVariable("username") String username) {
         try {
@@ -205,6 +231,8 @@ public class AdminRestController {
     // ======================================================================
     // 4. QUẢN LÝ ĐƠN HÀNG
     // ======================================================================
+    // THÊM: Cho phép Admin, Staff và Shipper đều xem được đơn hàng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'SHIPPER')")
     @GetMapping("/orders")
     public ResponseEntity<List<Order>> getAllOrdersForAdmin(
             @RequestParam(value = "status", required = false) String status,
@@ -216,11 +244,15 @@ public class AdminRestController {
         return ResponseEntity.ok(orders);
     }
 
+    // THÊM: Cho phép Admin, Staff và Shipper đều xem chi tiết đơn hàng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'SHIPPER')")
     @GetMapping("/orders/{id}")
     public ResponseEntity<Order> getOrderDetail(@PathVariable("id") Integer id) {
         return orderService.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
+    // THÊM: Cho phép Admin, Staff và Shipper đều cập nhật trạng thái đơn hàng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'SHIPPER')")
     @PutMapping("/orders/{id}/status")
     public ResponseEntity<?> updateOrderStatus(@PathVariable("id") Integer orderId, @RequestBody Map<String, String> body) {
         try {
@@ -240,6 +272,8 @@ public class AdminRestController {
     }
 
     // --- API CỘNG LẠI TỒN KHO THỦ CÔNG CHO ĐƠN HOÀN TRẢ ---
+    // THÊM: Chỉ Admin và Staff mới được cộng lại kho
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @PutMapping("/orders/{id}/restock")
     public ResponseEntity<?> restockReturnedOrder(@PathVariable("id") Integer id) {
         try {
@@ -250,6 +284,8 @@ public class AdminRestController {
         }
     }
 
+    // THÊM: Chỉ Admin và Staff mới được xóa đơn hàng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @DeleteMapping("/orders/{id}")
     public ResponseEntity<?> deleteOrder(@PathVariable("id") Integer id) {
         try {
@@ -262,6 +298,8 @@ public class AdminRestController {
     }
     
     // --- API XUẤT HÓA ĐƠN PDF ---
+    // THÊM: Cho phép Admin, Staff và Shipper đều xuất PDF đơn hàng
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'SHIPPER')")
     @GetMapping("/orders/{id}/export-pdf")
     public ResponseEntity<byte[]> exportOrderPdf(
             @PathVariable Integer id,
@@ -280,6 +318,8 @@ public class AdminRestController {
     }
     
     // --- API IN HÀNG LOẠT (BULK EXPORT) ---
+    // THÊM: Chỉ Admin và Staff mới được in hàng loạt
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/orders/export-pdf/bulk")
     public ResponseEntity<byte[]> exportBulkOrders(
             @RequestParam List<Integer> ids, 
@@ -306,6 +346,8 @@ public class AdminRestController {
     // ======================================================================
     // 5. BÁO CÁO THỐNG KÊ (GIỮ NGUYÊN)
     // ======================================================================
+    // THÊM: Chỉ Admin và Staff mới xem được báo cáo thống kê
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/reports/revenue/{year}")
     public ResponseEntity<?> getRevenueReport(@PathVariable("year") Integer year) {
         try { return ResponseEntity.ok(orderService.getMonthlyRevenue(year)); }
