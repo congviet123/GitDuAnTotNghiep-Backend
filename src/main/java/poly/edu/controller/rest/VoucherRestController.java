@@ -52,14 +52,14 @@ public class VoucherRestController {
         return ResponseEntity.ok(voucherService.findPublicActiveVouchers());
     }
     
-    // Lấy voucher theo mã
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+ // ========== SỬA: Lấy voucher theo mã - PUBLIC (cho khách hàng áp dụng) ==========
     @GetMapping("/{code}")
     public ResponseEntity<VoucherDTO> getByCode(@PathVariable String code) {
         return voucherService.findByCode(code)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+    // ========== KẾT THÚC SỬA ==========
     
     // Kiểm tra voucher công khai (cho khách hàng áp dụng) - PUBLIC
     @GetMapping("/public/{code}")
