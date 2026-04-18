@@ -160,7 +160,10 @@ public class OrderServiceImpl implements OrderService {
 
 
         // ========== TÍNH TỔNG TIỀN HÀNG ==========
+<<<<<<< HEAD
 
+=======
+>>>>>>> 16edb66e074d0c89c0b7256b605d335a17b46c77
         // Duyệt qua từng sản phẩm mà khách đặt mua
         for (OrderCreateDTO.OrderItem item : orderDTO.getItems()) {
             
@@ -280,7 +283,10 @@ public class OrderServiceImpl implements OrderService {
         order.setPaymentMethod(orderDTO.getPaymentMethod());
         order.setStatus("PENDING");
         order.setVoucherCode(appliedVoucherCode); // Lưu mã voucher đã dùng
+<<<<<<< HEAD
 
+=======
+>>>>>>> 16edb66e074d0c89c0b7256b605d335a17b46c77
         
         Order savedOrder = orderRepository.save(order);
         
@@ -290,7 +296,10 @@ public class OrderServiceImpl implements OrderService {
             orderDetailRepository.save(detail);
         }
         
+<<<<<<< HEAD
 
+=======
+>>>>>>> 16edb66e074d0c89c0b7256b605d335a17b46c77
         // Cập nhật used_count của voucher
         if (appliedVoucherCode != null) {
             voucherRepository.findByCode(appliedVoucherCode).ifPresent(voucher -> {
@@ -302,6 +311,10 @@ public class OrderServiceImpl implements OrderService {
 
 
         // Xóa giỏ hàng
+<<<<<<< HEAD
+=======
+
+>>>>>>> 16edb66e074d0c89c0b7256b605d335a17b46c77
         // Xóa giỏ hàng của user sau khi đặt hàng thành công
 
         for (Integer cartId : cartIdsToDelete) {
@@ -581,5 +594,8 @@ public class OrderServiceImpl implements OrderService {
     }
     // ========== KẾT THÚC ==========
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 16edb66e074d0c89c0b7256b605d335a17b46c77
 }

@@ -161,11 +161,17 @@ public class AdminRestController {
     // ======================================================================
     // 3. QUẢN LÝ NGƯỜI DÙNG 
     // ======================================================================
+    
+    //  API lấy danh sách User có nhận tham số tìm kiếm 
+
     // THÊM: Chỉ Admin và Staff mới được quản lý người dùng
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @GetMapping("/users")
-    public List<UserListDTO> getAllUsers() { 
-        return userService.findAllForAdminList(); 
+    public ResponseEntity<List<UserListDTO>> getAllUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean status) {
+        return ResponseEntity.ok(userService.findAllForAdminList(keyword, role, status));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")

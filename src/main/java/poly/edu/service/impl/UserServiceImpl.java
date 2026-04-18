@@ -132,11 +132,17 @@ public class UserServiceImpl implements UserService {
     // 2. NHÓM CHỨC NĂNG DÀNH CHO ADMIN (QUẢN LÝ TÀI KHOẢN)
     // =========================================================
     
-    // Lấy danh sách User kèm theo Sổ địa chỉ để hiển thị lên bảng quản trị (VueJS)
+    // Lọc danh sách User kèm theo Sổ địa chỉ (Hỗ trợ tìm kiếm)
     @Override
     @Transactional(readOnly = true)
-    public List<UserListDTO> findAllForAdminList() {
-        List<User> users = userRepository.findAll();
+    public List<UserListDTO> findAllForAdminList(String keyword, String role, Boolean status) {
+        
+        // Làm sạch tham số trước khi gửi xuống DB (Tránh lỗi do khoảng trắng hoặc chuỗi rỗng)
+        String safeKeyword = (keyword != null && !keyword.trim().isEmpty()) ? keyword.trim() : null;
+        String safeRole = (role != null && !role.trim().isEmpty() && !role.equals("ALL")) ? role : null;
+        
+        // Gọi hàm Query mới bên UserRepository
+        List<User> users = userRepository.filterUsersForAdmin(safeKeyword, safeRole, status);
         List<UserListDTO> dtoList = new ArrayList<>();
         
         for (User u : users) {
@@ -148,7 +154,7 @@ public class UserServiceImpl implements UserService {
             dto.setRoleName(u.getRole() != null ? u.getRole().getName() : "");
             dto.setEnabled(u.getEnabled());
             
-            // Ép mảng địa chỉ vào DTO để VueJS có dữ liệu hiển thị (Cột "Địa chỉ mặc định")
+            // Ép mảng địa chỉ vào DTO để VueJS có dữ liệu hiển thị
             dto.setAddresses(u.getAddresses());
             
             dtoList.add(dto);
@@ -217,6 +223,13 @@ public class UserServiceImpl implements UserService {
         if (existingUser == null) {
              throw new RuntimeException("Không tìm thấy user: " + user.getUsername());
         }
+
+        // Chặn tự khóa tài khoản (Self-lockout)
+        String currentUser = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        if (existingUser.getUsername().equals(currentUser) && user.getEnabled() != null && !user.getEnabled()) {
+             throw new RuntimeException("Hành động bị từ chối: Bạn không thể tự khóa tài khoản của chính mình!");
+        }
+        // ========== KẾT THÚC THÊM MỚI ==========
         
         // Lưu lại trạng thái cũ để biết Admin vừa "Khóa" hay "Mở khóa"
         boolean oldStatus = existingUser.getEnabled();
